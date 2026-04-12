@@ -1,0 +1,11 @@
+# Compiled binary
+xiaolengbox
+
+# Generated app bundle
+xiaolengbox.app/
+
+# User data
+xiaolengbox_data.json
+
+# macOS
+.DS_Store
