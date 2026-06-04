@@ -1,11 +1,12 @@
-# Compiled binary
-xiaolengbox
-
-# Generated app bundle
-xiaolengbox.app/
-
-# User data
-xiaolengbox_data.json
-
-# macOS
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj/
+xcuserdata/
+DerivedData/
 .DS_Store
+*.swp
+*~
+xiaolengbox_data.json
+sticky_images/
+gen_pdf.py
