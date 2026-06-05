@@ -1,7 +1,7 @@
 import Foundation
 
 class DataStore {
-    static let shared = DataStore()
+    nonisolated(unsafe) static let shared = DataStore()
     var categories: [Category] = []
     var wallpaperPath: String = ""
     var glassMode: String = "glass"

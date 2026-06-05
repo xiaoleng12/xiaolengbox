@@ -406,5 +406,5 @@ class ToolListViewController: NSViewController,
 }
 
 private enum AssociatedKeys {
-    static let pathField = UnsafeRawPointer(bitPattern: "pathField".hashValue)!
+    nonisolated(unsafe) static let pathField = UnsafeRawPointer(bitPattern: "pathField".hashValue)!
 }
