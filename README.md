@@ -4,8 +4,6 @@ A native macOS developer toolbox launcher built with Swift and AppKit. Designed 
 
 macOS 原生开发者工具箱启动器，使用 Swift + AppKit 构建。专为开发者和网络安全从业者设计，提供工具分类管理、一键启动、毛玻璃主题等原生体验。
 
-![XiaoLengBox Screenshot](Resources/screenshot.png)
-
 ## Features / 功能
 
 **Tool Management / 工具管理**
