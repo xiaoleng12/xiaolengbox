@@ -62,6 +62,15 @@ Or download the `.app` bundle from the [Releases](../../releases) page if availa
 The pre-built app includes all resources (demo PDF, Markdown, shell script, and default wallpaper).
 预编译的应用已包含所有资源文件（示例 PDF、Markdown、脚本和默认壁纸）。
 
+> **⚠️ 如果打开时提示"文件已损坏" / If macOS says "file is damaged":**
+>
+> 这是 macOS Gatekeeper 对未签名应用的安全限制，并非文件真的损坏。运行以下命令即可解决：
+>
+> This is a macOS Gatekeeper restriction for unsigned apps, not actual file corruption. Run:
+> ```bash
+> xattr -cr 小冷工具箱.app
+> ```
+
 ---
 
 ### Option 2: Build from Source / 从源码编译

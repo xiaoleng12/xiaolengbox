@@ -72,9 +72,15 @@ if [ "$MODE" = "release" ]; then
     # Copy binary
     cp "$BINARY" "$APP_DIR/Contents/MacOS/"
 
-    # Copy resources
+    # Copy resources (exclude README preview images)
     if [ -d "Resources" ]; then
-        cp -R Resources/* "$APP_DIR/Contents/Resources/" 2>/dev/null || true
+        for f in Resources/*; do
+            fname=$(basename "$f")
+            case "$fname" in
+                preview_*.png|screenshot*.png) continue ;;  # README-only images
+                *) cp -R "$f" "$APP_DIR/Contents/Resources/" 2>/dev/null || true ;;
+            esac
+        done
     fi
 
     # Create Info.plist
@@ -104,6 +110,13 @@ if [ "$MODE" = "release" ]; then
 </dict>
 </plist>
 PLIST
+
+    # Ad-hoc code signing (helps with Gatekeeper, no Apple Developer account needed)
+    # Note: Users who download from the internet still need to run:
+    #   xattr -cr "小冷工具箱.app"
+    echo "Signing app (ad-hoc)..."
+    codesign --force --deep --sign - "$APP_DIR"
+    echo -e "${GREEN}✓ App signed${NC}"
 
     echo -e "${GREEN}✓ App bundle created: ${APP_DIR}${NC}"
     echo ""
