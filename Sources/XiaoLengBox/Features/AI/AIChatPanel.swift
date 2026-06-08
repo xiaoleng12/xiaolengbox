@@ -308,11 +308,17 @@ private enum MarkdownRenderer {
     }
 }
 
+// MARK: - Flipped NSView (Y=0 at top, grows downward)
+
+private class FlippedView: NSView {
+    override var isFlipped: Bool { true }
+}
+
 // MARK: - AI Chat Panel
 
 class AIChatPanel: NSView {
     private let scrollView = NSScrollView()
-    private let chatContainer = NSView()  // documentView, frame-based
+    private let chatContainer = FlippedView()  // flipped: Y=0 at top
     private let inputField = NSTextField()
     private let sendButton = NSButton()
     private let settingsButton = NSButton()
@@ -530,10 +536,21 @@ class AIChatPanel: NSView {
 
         var apiMsgs: [[String: String]] = []
         apiMsgs.append(["role": "system", "content": """
-        你是「小冷工具箱」的 AI 助手。帮助用户管理开发和安全工具。
+        你是「小冷工具箱」的 AI 助手，当前使用的模型是 \(store.aiModel)。帮助用户管理开发和安全工具。
         能力：分析工具箱状态、推荐工具、生成导入列表、解答工具问题。
+
+        【隐私规则 - 必须严格遵守】
+        绝对不要在回答中输出用户的实际文件系统路径（如 /Users/xxx/...）。
+        给出命令示例时，一律使用占位符：
+        - 数据文件路径用 $DATA_FILE 或 <工具箱路径>/Contents/MacOS/xiaolengbox_data.json
+        - PDF/MD 文件路径用 /你的/文件/路径.pdf
+        - 工具路径用 /安装/路径/工具名
+        告诉用户自行替换占位符即可，不要尝试猜测或推断用户的实际路径。
+
+        当用户问命令行操作问题时，根据以下 CLI 指南给出命令模板（使用占位符）。
         导入格式：工具名 路径：/完整/路径（每行一个）
         当前状态：\(store.generateToolboxContext())
+        \(store.generateCLIHelp())
         用中文回答，简洁实用。
         """])
         for m in messages where m.role != "system" { apiMsgs.append(["role": m.role, "content": m.content]) }

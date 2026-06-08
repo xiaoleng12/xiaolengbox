@@ -221,4 +221,74 @@ class DataStore {
 
         return lines.joined(separator: "\n")
     }
+
+    /// Generates CLI help text: data file path, JSON structure, and example commands.
+    func generateCLIHelp() -> String {
+        return """
+
+        === 命令行操作指南 ===
+
+        数据文件位于可执行文件同级目录下，文件名为 xiaolengbox_data.json。
+        用户需要自行确认可执行文件的实际位置，数据文件就在它旁边。
+        以下示例用 $DATA_FILE 代替数据文件的实际路径，用户需替换为自己的路径。
+
+        数据格式为 JSON，结构如下：
+        {
+          "categories": [
+            {
+              "id": "UUID",
+              "name": "分类名称",
+              "type": "normal",          // normal=应用工具, pdf=PDF文档, md=Markdown, sticky=便签
+              "metadata": null,           // pdf/md类型时为文件路径
+              "tools": [
+                {
+                  "id": "UUID",
+                  "name": "工具名",
+                  "appPath": "/path/to/app",
+                  "detectionStatus": "custom",
+                  "presetId": null,
+                  "customInstallHint": null
+                }
+              ]
+            }
+          ]
+        }
+
+        常用操作（需先关闭工具箱，改完后重新打开）：
+
+        1. 查看所有分类：
+        jq '.categories[] | {name, type}' "$DATA_FILE"
+
+        2. 添加一个应用分类：
+        jq '.categories += [{"id":(now|tostring|sha1), "name":"新分类", "type":"normal", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+
+        3. 向分类添加工具（替换分类名和路径）：
+        jq '(.categories[] | select(.name=="分类名") | .tools) += [{"id":(now|tostring|sha1), "name":"工具名", "appPath":"/usr/local/bin/tool", "detectionStatus":"custom"}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+
+        4. 添加 PDF 分类（metadata 为文件路径）：
+        jq '.categories += [{"id":(now|tostring|sha1), "name":"我的PDF", "type":"pdf", "metadata":"/path/to/file.pdf", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+
+        5. 添加 Markdown 分类：
+        jq '.categories += [{"id":(now|tostring|sha1), "name":"我的文档", "type":"md", "metadata":"/path/to/file.md", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+
+        6. 添加便签分类：
+        jq '.categories += [{"id":(now|tostring|sha1), "name":"我的便签", "type":"sticky", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+
+        7. 用 Python 添加（更易读）：
+        python3 -c "
+        import json, uuid
+        path = '替换为数据文件路径'
+        with open(path) as f: data = json.load(f)
+        data['categories'].append({
+            'id': str(uuid.uuid4()), 'name': '新分类', 'type': 'normal',
+            'tools': [], 'isPreset': False, 'presetIcon': None, 'metadata': None
+        })
+        with open(path, 'w') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+        "
+
+        重要：回答用户时，请告诉用户先找到小冷工具箱.app 的位置，
+        数据文件在 小冷工具箱.app/Contents/MacOS/xiaolengbox_data.json。
+        修改前请先备份，修改后需重启工具箱生效。
+        """
+    }
 }
