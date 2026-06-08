@@ -13,6 +13,7 @@ class DataStore {
     var aiBaseUrl: String = ""
     var aiApiKey: String = ""
     var aiModel: String = "gpt-4o"
+    var aiProvider: String = ""
 
     private struct StoreData: Codable {
         var categories: [Category]
@@ -24,6 +25,7 @@ class DataStore {
         var aiBaseUrl: String?
         var aiApiKey: String?
         var aiModel: String?
+        var aiProvider: String?
 
         init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -36,9 +38,10 @@ class DataStore {
             aiBaseUrl = try container.decodeIfPresent(String.self, forKey: .aiBaseUrl) ?? ""
             aiApiKey = try container.decodeIfPresent(String.self, forKey: .aiApiKey) ?? ""
             aiModel = try container.decodeIfPresent(String.self, forKey: .aiModel) ?? "gpt-4o"
+            aiProvider = try container.decodeIfPresent(String.self, forKey: .aiProvider) ?? ""
         }
 
-        init(categories: [Category], wallpaperPath: String, glassMode: String, glassOpacity: Double, stickyNotes: [StickyNoteModel], terminalWindowFrame: String?, aiBaseUrl: String, aiApiKey: String, aiModel: String) {
+        init(categories: [Category], wallpaperPath: String, glassMode: String, glassOpacity: Double, stickyNotes: [StickyNoteModel], terminalWindowFrame: String?, aiBaseUrl: String, aiApiKey: String, aiModel: String, aiProvider: String) {
             self.categories = categories
             self.wallpaperPath = wallpaperPath
             self.glassMode = glassMode
@@ -48,10 +51,11 @@ class DataStore {
             self.aiBaseUrl = aiBaseUrl
             self.aiApiKey = aiApiKey
             self.aiModel = aiModel
+            self.aiProvider = aiProvider
         }
 
         private enum CodingKeys: String, CodingKey {
-            case categories, wallpaperPath, glassMode, glassOpacity, stickyNotes, terminalWindowFrame, aiBaseUrl, aiApiKey, aiModel
+            case categories, wallpaperPath, glassMode, glassOpacity, stickyNotes, terminalWindowFrame, aiBaseUrl, aiApiKey, aiModel, aiProvider
         }
     }
 
@@ -73,6 +77,7 @@ class DataStore {
             aiBaseUrl = decoded.aiBaseUrl ?? ""
             aiApiKey = decoded.aiApiKey ?? ""
             aiModel = decoded.aiModel ?? "gpt-4o"
+            aiProvider = decoded.aiProvider ?? ""
         } else {
             categories = []
             wallpaperPath = ""
@@ -83,11 +88,12 @@ class DataStore {
             aiBaseUrl = ""
             aiApiKey = ""
             aiModel = "gpt-4o"
+            aiProvider = ""
         }
     }
 
     func save() {
-        let store = StoreData(categories: categories, wallpaperPath: wallpaperPath, glassMode: glassMode, glassOpacity: glassOpacity, stickyNotes: stickyNotes, terminalWindowFrame: terminalWindowFrame, aiBaseUrl: aiBaseUrl, aiApiKey: aiApiKey, aiModel: aiModel)
+        let store = StoreData(categories: categories, wallpaperPath: wallpaperPath, glassMode: glassMode, glassOpacity: glassOpacity, stickyNotes: stickyNotes, terminalWindowFrame: terminalWindowFrame, aiBaseUrl: aiBaseUrl, aiApiKey: aiApiKey, aiModel: aiModel, aiProvider: aiProvider)
         guard let data = try? JSONEncoder().encode(store) else { return }
         try? data.write(to: dataFilePath(), options: .atomic)
     }
