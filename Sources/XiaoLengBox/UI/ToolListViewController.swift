@@ -382,6 +382,138 @@ class ToolListViewController: NSViewController,
         effectView.alphaValue = CGFloat(val)
     }
 
+    // MARK: - Install Guide Popover
+
+    private var installGuidePopover: NSPopover?
+
+    @objc func showInstallGuide(_ sender: NSButton) {
+        guard let cat = currentCategory, cat.type == "normal" else { return }
+        let tools = DataStore.shared.tools(for: cat.id)
+        guard !tools.isEmpty else { return }
+
+        // Build popover content
+        let contentVC = NSViewController()
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 0))
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor(white: 0.12, alpha: 1.0).cgColor
+
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 420, height: 0))
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+
+        let clipView = NSClipView()
+        let docView = NSView()
+        docView.wantsLayer = true
+
+        var yPos: CGFloat = 0
+        let padding: CGFloat = 12
+        let rowHeight: CGFloat = 52
+
+        // Header
+        let header = NSTextField(labelWithString: "\(cat.name) — 安装指引")
+        header.font = .boldSystemFont(ofSize: 14)
+        header.textColor = .white
+        header.frame = NSRect(x: padding, y: yPos + 4, width: 396, height: 22)
+        docView.addSubview(header)
+        yPos += 32
+
+        // Separator
+        let sep = NSView(frame: NSRect(x: padding, y: yPos, width: 396, height: 1))
+        sep.wantsLayer = true
+        sep.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        docView.addSubview(sep)
+        yPos += 8
+
+        for tool in tools {
+            let presetTool = tool.presetId.flatMap { PresetCatalog.findPresetTool(id: $0) }
+            let hint = presetTool?.installHint ?? "手动设置路径"
+            let isDetected = tool.detectionStatus == .detected || tool.detectionStatus == .custom
+            let statusIcon = isDetected ? "✓" : "○"
+            let statusColor: NSColor = isDetected
+                ? NSColor(red: 0.3, green: 0.85, blue: 0.4, alpha: 1)
+                : NSColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
+
+            let row = NSView(frame: NSRect(x: 0, y: yPos, width: 420, height: rowHeight))
+            row.wantsLayer = true
+
+            // Status icon
+            let statusLabel = NSTextField(labelWithString: statusIcon)
+            statusLabel.font = .systemFont(ofSize: 14, weight: .bold)
+            statusLabel.textColor = statusColor
+            statusLabel.frame = NSRect(x: padding, y: 16, width: 18, height: 20)
+            row.addSubview(statusLabel)
+
+            // Tool name
+            let nameLabel = NSTextField(labelWithString: tool.name)
+            nameLabel.font = .systemFont(ofSize: 13, weight: .medium)
+            nameLabel.textColor = .white
+            nameLabel.frame = NSRect(x: padding + 22, y: 26, width: 240, height: 18)
+            row.addSubview(nameLabel)
+
+            // Install hint
+            let hintLabel = NSTextField(labelWithString: hint)
+            hintLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+            hintLabel.textColor = NSColor.white.withAlphaComponent(0.6)
+            hintLabel.frame = NSRect(x: padding + 22, y: 8, width: 290, height: 16)
+            hintLabel.lineBreakMode = .byTruncatingTail
+            hintLabel.toolTip = hint
+            row.addSubview(hintLabel)
+
+            // Copy button
+            let copyBtn = NSButton(title: "复制", target: self, action: #selector(copyInstallHint(_:)))
+            copyBtn.bezelStyle = .inline
+            copyBtn.font = .systemFont(ofSize: 11)
+            copyBtn.contentTintColor = NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1)
+            copyBtn.isBordered = false
+            copyBtn.frame = NSRect(x: 360, y: 16, width: 44, height: 22)
+            copyBtn.toolTip = hint
+            row.addSubview(copyBtn)
+
+            docView.addSubview(row)
+            yPos += rowHeight
+        }
+
+        docView.frame = NSRect(x: 0, y: 0, width: 420, height: yPos + padding)
+        scrollView.documentView = docView
+
+        let maxH: CGFloat = 400
+        let contentH = min(yPos + padding, maxH)
+        scrollView.frame = NSRect(x: 0, y: 0, width: 420, height: contentH)
+        container.addSubview(scrollView)
+        container.frame = NSRect(x: 0, y: 0, width: 420, height: contentH)
+
+        contentVC.view = container
+
+        // Create/show popover
+        if let existing = installGuidePopover, existing.isShown {
+            existing.close()
+        }
+        let popover = NSPopover()
+        popover.contentViewController = contentVC
+        popover.contentSize = NSSize(width: 420, height: contentH)
+        popover.behavior = .transient
+        popover.animates = true
+        installGuidePopover = popover
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+    }
+
+    @objc private func copyInstallHint(_ sender: NSButton) {
+        guard let hint = sender.toolTip else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(hint, forType: .string)
+
+        // Brief visual feedback
+        let original = sender.title
+        sender.title = "已复制"
+        sender.contentTintColor = NSColor(red: 0.3, green: 0.85, blue: 0.4, alpha: 1)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            sender.title = original
+            sender.contentTintColor = NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1)
+        }
+    }
+
     // MARK: NSCollectionViewDataSource
     func collectionView(_ collectionView: NSCollectionView, numberOfItemsInSection section: Int) -> Int {
         guard let cat = currentCategory else { return 0 }

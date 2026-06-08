@@ -274,6 +274,10 @@ class MainWindowController: NSWindowController {
         importToolBtn.bezelStyle = .rounded
         importToolBtn.translatesAutoresizingMaskIntoConstraints = false
 
+        let installGuideBtn = NSButton(title: "? 安装指引", target: toolVC, action: #selector(ToolListViewController.showInstallGuide(_:)))
+        installGuideBtn.bezelStyle = .rounded
+        installGuideBtn.translatesAutoresizingMaskIntoConstraints = false
+
         let wallpaperBtn = NSButton(title: "  壁纸", target: toolVC, action: #selector(ToolListViewController.changeWallpaper))
         wallpaperBtn.bezelStyle = .rounded
         wallpaperBtn.translatesAutoresizingMaskIntoConstraints = false
@@ -312,7 +316,7 @@ class MainWindowController: NSWindowController {
         opStack.translatesAutoresizingMaskIntoConstraints = false
         opStack.isHidden = !isGlass
 
-        let btnStack = NSStackView(views: [glassBtn, opStack, clearWallBtn, wallpaperBtn, addToolBtn, importToolBtn])
+        let btnStack = NSStackView(views: [glassBtn, opStack, clearWallBtn, wallpaperBtn, addToolBtn, importToolBtn, installGuideBtn])
         btnStack.orientation = .horizontal
         btnStack.spacing = 8
         btnStack.translatesAutoresizingMaskIntoConstraints = false
