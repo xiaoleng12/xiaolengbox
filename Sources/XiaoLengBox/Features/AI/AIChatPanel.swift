@@ -12,7 +12,7 @@ struct AIProviderPreset {
 enum AIProviderCatalog {
     static let all: [AIProviderPreset] = [
         AIProviderPreset(id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1",
-                         models: ["deepseek-chat", "deepseek-reasoner"]),
+                         models: ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"]),
         AIProviderPreset(id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1",
                          models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]),
         AIProviderPreset(id: "moonshot", name: "Moonshot (月之暗面)", baseUrl: "https://api.moonshot.cn/v1",
@@ -20,7 +20,7 @@ enum AIProviderCatalog {
         AIProviderPreset(id: "zhipu", name: "智谱 AI (GLM)", baseUrl: "https://open.bigmodel.cn/api/paas/v4",
                          models: ["glm-4-plus", "glm-4-flash", "glm-4-long"]),
         AIProviderPreset(id: "siliconflow", name: "SiliconFlow", baseUrl: "https://api.siliconflow.cn/v1",
-                         models: ["deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1",
+                         models: ["deepseek-ai/DeepSeek-V4", "deepseek-ai/DeepSeek-R1",
                                   "Qwen/Qwen2.5-72B-Instruct", "THUDM/glm-4-9b-chat"]),
         AIProviderPreset(id: "ollama", name: "Ollama (本地)", baseUrl: "http://localhost:11434/v1",
                          models: ["llama3", "qwen2", "deepseek-r1", "codellama", "mistral"]),
@@ -215,9 +215,9 @@ private class ChatBubbleView: NSView {
         bubble.translatesAutoresizingMaskIntoConstraints = false
 
         let bubbleBg: NSColor
-        if isSystem { bubbleBg = NSColor(white: 0.93, alpha: 1) }
-        else if isUser { bubbleBg = NSColor(red: 0.57, green: 0.77, blue: 0.36, alpha: 1) }
-        else { bubbleBg = NSColor(white: 0.95, alpha: 1) }
+        if isSystem { bubbleBg = NSColor(white: 0.96, alpha: 1) }
+        else if isUser { bubbleBg = NSColor(red: 0.56, green: 0.78, blue: 0.42, alpha: 1) }
+        else { bubbleBg = NSColor.white }
         bubble.layer?.backgroundColor = bubbleBg.cgColor
 
         // Text
@@ -468,6 +468,7 @@ class AIChatPanel: NSView {
     private let sendButton = NSButton()
     private let settingsButton = NSButton()
     private let faqButton = NSButton()
+    private var inputRowRef: NSStackView?
     private var messages: [ChatMessage] = []
     private var isLoading = false
     private var faqPanel: FAQPanelView?
@@ -488,6 +489,9 @@ class AIChatPanel: NSView {
     // MARK: - UI Setup
 
     private func buildUI() {
+        // Light background for the chat area
+        layer?.backgroundColor = NSColor(white: 0.97, alpha: 1).cgColor
+
         chatContainer.wantsLayer = true
         chatContainer.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = chatContainer
@@ -528,6 +532,7 @@ class AIChatPanel: NSView {
         inputRow.orientation = .horizontal
         inputRow.spacing = 8
         inputRow.translatesAutoresizingMaskIntoConstraints = false
+        inputRowRef = inputRow
 
         addSubview(scrollView)
         addSubview(inputRow)
@@ -546,12 +551,22 @@ class AIChatPanel: NSView {
             inputRow.heightAnchor.constraint(equalToConstant: 32),
         ])
 
-        // Init container size after layout
+        // Init container size after layout is complete
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            let h = max(self.scrollView.contentSize.height, 100)
-            self.chatContainer.frame = NSRect(x: 0, y: 0, width: self.scrollView.contentSize.width, height: h)
+            self.syncContainerSize()
             self.showWelcome()
+        }
+    }
+
+    /// Ensure chatContainer has a valid width matching the scroll view.
+    private func syncContainerSize() {
+        let w = scrollView.contentSize.width > 0
+            ? scrollView.contentSize.width
+            : max(bounds.width - 24, 400)
+        let h = max(scrollView.contentSize.height, 100)
+        if chatContainer.frame.width != w || chatContainer.frame.height < h {
+            chatContainer.frame = NSRect(x: 0, y: 0, width: w, height: max(chatContainer.frame.height, h))
         }
     }
 
@@ -584,18 +599,14 @@ class AIChatPanel: NSView {
         }
 
         addSubview(panel)
+        let bottomRef = inputRowRef?.topAnchor ?? scrollView.bottomAnchor
         NSLayoutConstraint.activate([
             panel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            panel.bottomAnchor.constraint(equalTo: inputRow.bottomAnchor, constant: 40),
+            panel.bottomAnchor.constraint(equalTo: bottomRef, constant: -4),
             panel.widthAnchor.constraint(equalToConstant: 280),
             panel.heightAnchor.constraint(equalToConstant: 320),
         ])
         faqPanel = panel
-    }
-
-    // Need a reference to inputRow for constraint
-    private var inputRow: NSStackView {
-        subviews.compactMap { $0 as? NSStackView }.first ?? NSStackView()
     }
 
     // MARK: - Settings Dialog (Preset Providers)
@@ -721,6 +732,9 @@ class AIChatPanel: NSView {
     private func appendMessage(_ text: String, role: String) {
         messages.append(ChatMessage(role: role, content: text))
 
+        // Ensure container has valid width before adding bubble
+        syncContainerSize()
+
         let bubble = ChatBubbleView(text: text, role: role)
         bubble.translatesAutoresizingMaskIntoConstraints = false
         chatContainer.addSubview(bubble)
@@ -746,7 +760,9 @@ class AIChatPanel: NSView {
 
     private func updateContainerHeight() {
         let maxY = chatContainer.subviews.reduce(CGFloat(0)) { max($0, $1.frame.maxY) } + 8
-        let w = scrollView.contentSize.width > 0 ? scrollView.contentSize.width : chatContainer.frame.width
+        let w = scrollView.contentSize.width > 0
+            ? scrollView.contentSize.width
+            : max(bounds.width - 24, 400)
         let h = max(maxY, scrollView.contentSize.height)
         chatContainer.frame = NSRect(x: 0, y: 0, width: w, height: h)
     }
