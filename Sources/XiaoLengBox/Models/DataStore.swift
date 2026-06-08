@@ -9,6 +9,11 @@ class DataStore {
     var stickyNotes: [StickyNoteModel] = []
     var terminalWindowFrame: String?
 
+    // AI integration settings
+    var aiBaseUrl: String = ""
+    var aiApiKey: String = ""
+    var aiModel: String = "gpt-4o"
+
     private struct StoreData: Codable {
         var categories: [Category]
         var wallpaperPath: String
@@ -16,6 +21,9 @@ class DataStore {
         var glassOpacity: Double
         var stickyNotes: [StickyNoteModel]
         var terminalWindowFrame: String?
+        var aiBaseUrl: String?
+        var aiApiKey: String?
+        var aiModel: String?
 
         init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -25,19 +33,25 @@ class DataStore {
             glassOpacity = try container.decodeIfPresent(Double.self, forKey: .glassOpacity) ?? 0.8
             stickyNotes = try container.decodeIfPresent([StickyNoteModel].self, forKey: .stickyNotes) ?? []
             terminalWindowFrame = try container.decodeIfPresent(String.self, forKey: .terminalWindowFrame)
+            aiBaseUrl = try container.decodeIfPresent(String.self, forKey: .aiBaseUrl) ?? ""
+            aiApiKey = try container.decodeIfPresent(String.self, forKey: .aiApiKey) ?? ""
+            aiModel = try container.decodeIfPresent(String.self, forKey: .aiModel) ?? "gpt-4o"
         }
 
-        init(categories: [Category], wallpaperPath: String, glassMode: String, glassOpacity: Double, stickyNotes: [StickyNoteModel], terminalWindowFrame: String?) {
+        init(categories: [Category], wallpaperPath: String, glassMode: String, glassOpacity: Double, stickyNotes: [StickyNoteModel], terminalWindowFrame: String?, aiBaseUrl: String, aiApiKey: String, aiModel: String) {
             self.categories = categories
             self.wallpaperPath = wallpaperPath
             self.glassMode = glassMode
             self.glassOpacity = glassOpacity
             self.stickyNotes = stickyNotes
             self.terminalWindowFrame = terminalWindowFrame
+            self.aiBaseUrl = aiBaseUrl
+            self.aiApiKey = aiApiKey
+            self.aiModel = aiModel
         }
 
         private enum CodingKeys: String, CodingKey {
-            case categories, wallpaperPath, glassMode, glassOpacity, stickyNotes, terminalWindowFrame
+            case categories, wallpaperPath, glassMode, glassOpacity, stickyNotes, terminalWindowFrame, aiBaseUrl, aiApiKey, aiModel
         }
     }
 
@@ -56,6 +70,9 @@ class DataStore {
             glassOpacity = decoded.glassOpacity
             stickyNotes = decoded.stickyNotes
             terminalWindowFrame = decoded.terminalWindowFrame
+            aiBaseUrl = decoded.aiBaseUrl ?? ""
+            aiApiKey = decoded.aiApiKey ?? ""
+            aiModel = decoded.aiModel ?? "gpt-4o"
         } else {
             categories = []
             wallpaperPath = ""
@@ -63,11 +80,14 @@ class DataStore {
             glassOpacity = 0.8
             stickyNotes = []
             terminalWindowFrame = nil
+            aiBaseUrl = ""
+            aiApiKey = ""
+            aiModel = "gpt-4o"
         }
     }
 
     func save() {
-        let store = StoreData(categories: categories, wallpaperPath: wallpaperPath, glassMode: glassMode, glassOpacity: glassOpacity, stickyNotes: stickyNotes, terminalWindowFrame: terminalWindowFrame)
+        let store = StoreData(categories: categories, wallpaperPath: wallpaperPath, glassMode: glassMode, glassOpacity: glassOpacity, stickyNotes: stickyNotes, terminalWindowFrame: terminalWindowFrame, aiBaseUrl: aiBaseUrl, aiApiKey: aiApiKey, aiModel: aiModel)
         guard let data = try? JSONEncoder().encode(store) else { return }
         try? data.write(to: dataFilePath(), options: .atomic)
     }
@@ -146,5 +166,53 @@ class DataStore {
     func deleteStickyNote(id: UUID) {
         stickyNotes.removeAll { $0.id == id }
         save()
+    }
+
+    // MARK: - AI Context Generation
+
+    /// Generates a text description of the current toolbox state for AI system prompts.
+    func generateToolboxContext() -> String {
+        var lines: [String] = []
+        lines.append("=== 小冷工具箱 当前状态 ===")
+        lines.append("")
+
+        for cat in categories where cat.type == "normal" {
+            lines.append("【\(cat.name)】")
+            let tools = cat.tools
+            if tools.isEmpty {
+                lines.append("  (空)")
+            } else {
+                for tool in tools {
+                    let status: String
+                    switch tool.detectionStatus {
+                    case .detected: status = "✓ 已检测"
+                    case .custom:   status = "✓ 自定义路径"
+                    case .notFound: status = "✗ 未安装"
+                    case .detecting: status = "… 检测中"
+                    }
+                    let pathInfo = tool.appPath.isEmpty ? "" : " → \(tool.appPath)"
+                    let hint = tool.customInstallHint ?? tool.presetId.flatMap { PresetCatalog.findPresetTool(id: $0)?.installHint } ?? ""
+                    lines.append("  - \(tool.name) [\(status)]\(pathInfo)")
+                    if !hint.isEmpty { lines.append("    安装提示: \(hint)") }
+                }
+            }
+            lines.append("")
+        }
+
+        lines.append("=== 批量导入格式 ===")
+        lines.append("工具名 路径：/完整/路径/到/工具")
+        lines.append("示例：hydra 路径：/opt/homebrew/bin/hydra")
+        lines.append("")
+        lines.append("=== 可用预置工具（可建议用户安装的） ===")
+        let allPresetIds = Set(categories.flatMap { $0.tools.compactMap { $0.presetId } })
+        for preset in PresetCatalog.allPresetCategories where preset.type == "normal" {
+            for tool in preset.tools where !tool.id.hasPrefix("demo-") {
+                if !allPresetIds.contains(tool.id) {
+                    lines.append("  - \(tool.name): \(tool.installHint)")
+                }
+            }
+        }
+
+        return lines.joined(separator: "\n")
     }
 }

@@ -8,6 +8,7 @@ class MainWindowController: NSWindowController {
     private let pdfOutlineView = PDFOutlineListView()
     private var mdPanel = MDViewerPanel()
     private let mdOutlineView = MDOutlineListView()
+    private let aiPanel = AIChatPanel()
 
     private let leftContainer = NSView()
     private let pdfOutlineContainer = NSView()
@@ -170,6 +171,7 @@ class MainWindowController: NSWindowController {
         stickyNotesCanvas.translatesAutoresizingMaskIntoConstraints = false
         pdfPanel.translatesAutoresizingMaskIntoConstraints = false
         mdPanel.translatesAutoresizingMaskIntoConstraints = false
+        aiPanel.translatesAutoresizingMaskIntoConstraints = false
 
         categoryVC.onCategorySelected = { [weak self] cat in
             guard let self = self else { return }
@@ -255,7 +257,11 @@ class MainWindowController: NSWindowController {
         terminalButton.translatesAutoresizingMaskIntoConstraints = false
         terminalBtn = terminalButton
 
-        let funcBtnStack = NSStackView(views: [terminalButton])
+        let aiButton = NSButton(title: " AI 助手", target: self, action: #selector(toggleAIPanel))
+        aiButton.bezelStyle = .rounded
+        aiButton.translatesAutoresizingMaskIntoConstraints = false
+
+        let funcBtnStack = NSStackView(views: [terminalButton, aiButton])
         funcBtnStack.orientation = .horizontal
         funcBtnStack.spacing = 8
         funcBtnStack.translatesAutoresizingMaskIntoConstraints = false
@@ -407,6 +413,20 @@ class MainWindowController: NSWindowController {
                 terminal.window?.center()
                 terminalBtn?.title = "  终端 ✕"
             }
+        }
+    }
+
+    @objc private func toggleAIPanel() {
+        if currentViewType == "ai" {
+            // 已在 AI 面板 → 回到分类列表的第一个分类
+            showCategoryList()
+            categoryVC.selectFirst()
+        } else {
+            // 切换到 AI 面板
+            currentViewType = "ai"
+            showCategoryList()  // 确保左侧显示分类列表
+            aiPanel.translatesAutoresizingMaskIntoConstraints = false
+            attachRightView(aiPanel)
         }
     }
 
