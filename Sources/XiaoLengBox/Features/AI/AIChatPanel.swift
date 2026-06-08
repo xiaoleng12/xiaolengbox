@@ -1,5 +1,368 @@
 import AppKit
 
+// MARK: - Chat Bubble View (IM Style)
+
+private class ChatBubbleView: NSView {
+
+    init(text: String, role: String) {
+        super.init(frame: .zero)
+        wantsLayer = true
+
+        let isUser = role == "user"
+        let isSystem = role == "system"
+
+        // ---- Avatar ----
+        let avatar = NSView()
+        avatar.wantsLayer = true
+        avatar.layer?.cornerRadius = 16
+        avatar.translatesAutoresizingMaskIntoConstraints = false
+
+        let avatarLabel = NSTextField(labelWithString: isSystem ? "💡" : (isUser ? "我" : "AI"))
+        avatarLabel.font = .systemFont(ofSize: isSystem ? 14 : 12, weight: .medium)
+        avatarLabel.alignment = .center
+        avatarLabel.textColor = .white
+        avatarLabel.translatesAutoresizingMaskIntoConstraints = false
+        avatar.addSubview(avatarLabel)
+
+        NSLayoutConstraint.activate([
+            avatar.widthAnchor.constraint(equalToConstant: 32),
+            avatar.heightAnchor.constraint(equalToConstant: 32),
+            avatarLabel.centerXAnchor.constraint(equalTo: avatar.centerXAnchor),
+            avatarLabel.centerYAnchor.constraint(equalTo: avatar.centerYAnchor),
+        ])
+
+        let avatarBg: NSColor
+        if isSystem { avatarBg = NSColor(white: 0.4, alpha: 1) }
+        else if isUser { avatarBg = NSColor(red: 0.35, green: 0.65, blue: 1.0, alpha: 1) }
+        else { avatarBg = NSColor(red: 0.45, green: 0.80, blue: 0.45, alpha: 1) }
+        avatar.layer?.backgroundColor = avatarBg.cgColor
+
+        // ---- Name Label ----
+        let nameLabel = NSTextField(labelWithString: isSystem ? "系统提示" : (isUser ? "我" : "AI 助手"))
+        nameLabel.font = .systemFont(ofSize: 11)
+        nameLabel.textColor = .secondaryLabelColor
+        nameLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // ---- Bubble ----
+        let bubble = NSView()
+        bubble.wantsLayer = true
+        bubble.layer?.cornerRadius = 10
+        bubble.translatesAutoresizingMaskIntoConstraints = false
+
+        let bubbleBg: NSColor
+        if isSystem { bubbleBg = NSColor(white: 0.93, alpha: 1) }
+        else if isUser { bubbleBg = NSColor(red: 0.57, green: 0.77, blue: 0.36, alpha: 1) }
+        else { bubbleBg = NSColor(white: 0.95, alpha: 1) }
+        bubble.layer?.backgroundColor = bubbleBg.cgColor
+
+        // ---- Text View (Markdown) ----
+        let textView = NSTextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.translatesAutoresizingMaskIntoConstraints = false
+
+        let maxTextWidth: CGFloat = 380
+        textView.maxSize = NSSize(width: maxTextWidth, height: .greatestFiniteMagnitude)
+
+        if isSystem {
+            textView.textStorage?.setAttributedString(MarkdownRenderer.render(text, compact: true))
+        } else {
+            textView.textStorage?.setAttributedString(MarkdownRenderer.render(text))
+        }
+
+        // Measure text height
+        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+        let usedRect = textView.layoutManager!.usedRect(for: textView.textContainer!)
+        let textHeight = max(ceil(usedRect.height) + 4, 20)
+        let textWidth = min(ceil(usedRect.width) + 4, maxTextWidth)
+
+        bubble.addSubview(textView)
+        NSLayoutConstraint.activate([
+            textView.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 10),
+            textView.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 14),
+            textView.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -14),
+            textView.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -10),
+            textView.widthAnchor.constraint(equalToConstant: textWidth),
+            textView.heightAnchor.constraint(equalToConstant: textHeight),
+        ])
+
+        // ---- Copy Button (assistant/user only) ----
+        if !isSystem {
+            let copyBtn = NSButton(title: "复制", target: self, action: #selector(copyText(_:)))
+            copyBtn.bezelStyle = .inline
+            copyBtn.isBordered = false
+            copyBtn.font = .systemFont(ofSize: 10)
+            copyBtn.contentTintColor = isUser
+                ? NSColor.white.withAlphaComponent(0.6)
+                : NSColor.black.withAlphaComponent(0.3)
+            copyBtn.toolTip = text
+            copyBtn.translatesAutoresizingMaskIntoConstraints = false
+            bubble.addSubview(copyBtn)
+            NSLayoutConstraint.activate([
+                copyBtn.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -6),
+                copyBtn.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -2),
+            ])
+        }
+
+        // ---- Assemble ----
+        addSubview(nameLabel)
+        addSubview(avatar)
+        addSubview(bubble)
+
+        let bubbleH = textHeight + 20
+
+        if isUser {
+            NSLayoutConstraint.activate([
+                nameLabel.topAnchor.constraint(equalTo: topAnchor),
+                nameLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+
+                avatar.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
+                avatar.trailingAnchor.constraint(equalTo: trailingAnchor),
+
+                bubble.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
+                bubble.trailingAnchor.constraint(equalTo: avatar.leadingAnchor, constant: -8),
+                bubble.bottomAnchor.constraint(equalTo: bottomAnchor),
+                bubble.heightAnchor.constraint(equalToConstant: bubbleH),
+            ])
+        } else {
+            NSLayoutConstraint.activate([
+                nameLabel.topAnchor.constraint(equalTo: topAnchor),
+                nameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 40),
+
+                avatar.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
+                avatar.leadingAnchor.constraint(equalTo: leadingAnchor),
+
+                bubble.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
+                bubble.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 8),
+                bubble.bottomAnchor.constraint(equalTo: bottomAnchor),
+                bubble.heightAnchor.constraint(equalToConstant: bubbleH),
+            ])
+        }
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func copyText(_ sender: NSButton) {
+        guard let text = sender.toolTip else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        let orig = sender.title
+        sender.title = "✓ 已复制"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { sender.title = orig }
+    }
+}
+
+// MARK: - Markdown Renderer
+
+private enum MarkdownRenderer {
+
+    static func render(_ text: String, compact: Bool = false) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+
+        var inCodeBlock = false
+        var codeLines: [String] = []
+
+        for (lineIdx, line) in lines.enumerated() {
+            // --- fenced code block toggle ---
+            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                if inCodeBlock {
+                    result.append(makeCodeBlock(codeLines.joined(separator: "\n")))
+                    codeLines = []
+                    inCodeBlock = false
+                } else {
+                    inCodeBlock = true
+                }
+                if lineIdx < lines.count - 1 { result.append(newline(compact: compact)) }
+                continue
+            }
+
+            if inCodeBlock {
+                codeLines.append(line)
+                continue
+            }
+
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            if trimmed.isEmpty {
+                if lineIdx < lines.count - 1 { result.append(newline(compact: compact)) }
+            } else if trimmed.hasPrefix("### ") {
+                result.append(heading(String(trimmed.dropFirst(4)), level: 3, compact: compact))
+            } else if trimmed.hasPrefix("## ") {
+                result.append(heading(String(trimmed.dropFirst(3)), level: 2, compact: compact))
+            } else if trimmed.hasPrefix("# ") {
+                result.append(heading(String(trimmed.dropFirst(2)), level: 1, compact: compact))
+            } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                result.append(bulletLine(String(trimmed.dropFirst(2)), compact: compact))
+            } else if let m = trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) {
+                let num = String(trimmed[..<m.upperBound])
+                let body = String(trimmed[m.upperBound...])
+                result.append(numberedLine(num, body, compact: compact))
+            } else {
+                result.append(applyInline(trimmed, baseSize: compact ? 12 : 13))
+            }
+
+            if lineIdx < lines.count - 1 { result.append(newline(compact: compact)) }
+        }
+
+        // Unclosed code block
+        if inCodeBlock && !codeLines.isEmpty {
+            result.append(makeCodeBlock(codeLines.joined(separator: "\n")))
+        }
+
+        return result
+    }
+
+    // MARK: Block elements
+
+    private static func newline(compact: Bool) -> NSAttributedString {
+        let s = NSMutableAttributedString(string: "\n")
+        let p = NSMutableParagraphStyle()
+        p.paragraphSpacingBefore = 0
+        p.paragraphSpacing = compact ? 2 : 3
+        s.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: 1))
+        return s
+    }
+
+    private static func heading(_ text: String, level: Int, compact: Bool) -> NSAttributedString {
+        let sizes: [Int: CGFloat] = [1: 18, 2: 16, 3: 14]
+        let attr = NSMutableAttributedString()
+        attr.append(applyInline(text, baseSize: sizes[level] ?? 14, bold: true))
+        let p = NSMutableParagraphStyle()
+        p.paragraphSpacingBefore = compact ? 4 : 8
+        p.paragraphSpacing = compact ? 2 : 4
+        attr.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: attr.length))
+        return attr
+    }
+
+    private static func bulletLine(_ text: String, compact: Bool) -> NSAttributedString {
+        let attr = NSMutableAttributedString(string: "•  ", attributes: [
+            .font: NSFont.systemFont(ofSize: compact ? 12 : 13),
+            .foregroundColor: NSColor.labelColor,
+        ])
+        attr.append(applyInline(text, baseSize: compact ? 12 : 13))
+        let p = NSMutableParagraphStyle()
+        p.headIndent = 14
+        p.paragraphSpacingBefore = 1
+        p.paragraphSpacing = 1
+        attr.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: attr.length))
+        return attr
+    }
+
+    private static func numberedLine(_ num: String, _ body: String, compact: Bool) -> NSAttributedString {
+        let attr = NSMutableAttributedString(string: num, attributes: [
+            .font: NSFont.systemFont(ofSize: compact ? 12 : 13),
+            .foregroundColor: NSColor.labelColor,
+        ])
+        attr.append(applyInline(body, baseSize: compact ? 12 : 13))
+        let p = NSMutableParagraphStyle()
+        p.headIndent = 18
+        p.paragraphSpacingBefore = 1
+        p.paragraphSpacing = 1
+        attr.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: attr.length))
+        return attr
+    }
+
+    private static func makeCodeBlock(_ code: String) -> NSAttributedString {
+        let trimmed = code.hasSuffix("\n") ? String(code.dropLast()) : code
+        let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        let attr = NSMutableAttributedString(string: trimmed, attributes: [
+            .font: font,
+            .foregroundColor: NSColor(red: 0.85, green: 0.25, blue: 0.45, alpha: 1),
+            .backgroundColor: NSColor(white: 0.94, alpha: 1),
+        ])
+        let p = NSMutableParagraphStyle()
+        p.paragraphSpacingBefore = 6
+        p.paragraphSpacing = 4
+        p.headIndent = 8
+        p.tailIndent = -8
+        attr.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: attr.length))
+        // Kerning for readability
+        attr.addAttribute(.kern, value: 0.3, range: NSRange(location: 0, length: attr.length))
+        return attr
+    }
+
+    // MARK: Inline formatting
+
+    private static func applyInline(_ text: String, baseSize: CGFloat, bold: Bool = false) -> NSAttributedString {
+        let base: [NSAttributedString.Key: Any] = [
+            .font: bold ? NSFont.boldSystemFont(ofSize: baseSize) : NSFont.systemFont(ofSize: baseSize),
+            .foregroundColor: NSColor.labelColor,
+        ]
+        let attr = NSMutableAttributedString(string: text, attributes: base)
+
+        // 1) Inline code  `code`
+        replacePattern(attr, regex: "`([^`]+)`", baseSize: baseSize) { str, range in
+            str.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: baseSize - 1, weight: .regular), range: range)
+            str.addAttribute(.backgroundColor, value: NSColor(white: 0.90, alpha: 1), range: range)
+            str.addAttribute(.foregroundColor, value: NSColor(red: 0.80, green: 0.20, blue: 0.40, alpha: 1), range: range)
+        }
+
+        // 2) Bold  **text**
+        replacePattern(attr, regex: "\\*\\*([^*]+)\\*\\*", baseSize: baseSize) { str, range in
+            str.addAttribute(.font, value: NSFont.boldSystemFont(ofSize: baseSize), range: range)
+        }
+
+        // 3) Italic  *text*  (single * only)
+        replacePattern(attr, regex: "(?<!\\*)\\*(?!\\*)([^*]+)\\*(?!\\*)", baseSize: baseSize) { str, range in
+            let f = NSFontManager.shared.convert(NSFont.systemFont(ofSize: baseSize), toHaveTrait: .italicFontMask)
+            str.addAttribute(.font, value: f, range: range)
+        }
+
+        // 4) Links  [text](url)
+        if let re = try? NSRegularExpression(pattern: "\\[([^\\]]+)\\]\\(([^)]+)\\)") {
+            let matches = re.matches(in: attr.string, range: NSRange(location: 0, length: attr.length))
+            for m in matches.reversed() {
+                guard m.numberOfRanges >= 3 else { continue }
+                let urlStr = attr.attributedSubstring(from: m.range(at: 2)).string
+                let linkText = attr.attributedSubstring(from: m.range(at: 1)).string
+                guard let url = URL(string: urlStr) else { continue }
+
+                let linkAttr = NSMutableAttributedString(string: linkText, attributes: [
+                    .font: NSFont.systemFont(ofSize: baseSize),
+                    .foregroundColor: NSColor.linkColor,
+                    .link: url,
+                    .underlineStyle: NSUnderlineStyle.single.rawValue,
+                ])
+                attr.replaceCharacters(in: m.range, with: linkAttr)
+            }
+        }
+
+        return attr
+    }
+
+    private static func replacePattern(
+        _ attr: NSMutableAttributedString,
+        regex: String,
+        baseSize: CGFloat,
+        apply: (NSMutableAttributedString, NSRange) -> Void
+    ) {
+        guard let re = try? NSRegularExpression(pattern: regex) else { return }
+        let matches = re.matches(in: attr.string, range: NSRange(location: 0, length: attr.length))
+
+        for m in matches.reversed() {
+            guard m.numberOfRanges >= 2 else { continue }
+            let inner = m.range(at: 1)
+            let full = m.range
+            let content = attr.attributedSubstring(from: inner)
+
+            // Replace full match with inner content first
+            let replacement = NSMutableAttributedString(attributedString: content)
+            attr.replaceCharacters(in: full, with: replacement)
+
+            // Now apply formatting on the replaced range
+            let newRange = NSRange(location: full.location, length: content.length)
+            if newRange.location + newRange.length <= attr.length {
+                apply(attr, newRange)
+            }
+        }
+    }
+}
+
 // MARK: - AI Chat Panel
 
 class AIChatPanel: NSView {
@@ -13,7 +376,7 @@ class AIChatPanel: NSView {
     private var isLoading = false
 
     struct ChatMessage {
-        let role: String  // "user" or "assistant"
+        let role: String  // "user", "assistant", or "system"
         let content: String
     }
 
@@ -25,39 +388,39 @@ class AIChatPanel: NSView {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    // MARK: - UI Setup
+
     private func buildUI() {
-        // Chat scroll view
         chatContainer.wantsLayer = true
+        chatContainer.translatesAutoresizingMaskIntoConstraints = false
+
         scrollView.documentView = chatContainer
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
+        scrollView.automaticallyAdjustsContentInsets = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        // Input field
-        inputField.placeholderString = "输入消息... (例如: 帮我推荐安全工具并生成导入列表)"
+        inputField.placeholderString = "输入消息… (例如: 帮我推荐安全工具并生成导入列表)"
         inputField.font = .systemFont(ofSize: 13)
         inputField.isEditable = true
-        inputField.isBezeled = true
         inputField.bezelStyle = .roundedBezel
         inputField.target = self
         inputField.action = #selector(sendMessage)
         inputField.translatesAutoresizingMaskIntoConstraints = false
 
-        // Send button
         sendButton.title = "发送"
         sendButton.bezelStyle = .rounded
         sendButton.target = self
         sendButton.action = #selector(sendMessage)
+        sendButton.keyEquivalent = "\r"
         sendButton.translatesAutoresizingMaskIntoConstraints = false
 
-        // Settings button
         settingsButton.title = "⚙ 配置"
         settingsButton.bezelStyle = .rounded
         settingsButton.target = self
         settingsButton.action = #selector(showSettings)
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
 
-        // Input row
         let inputRow = NSStackView(views: [settingsButton, inputField, sendButton])
         inputRow.orientation = .horizontal
         inputRow.spacing = 8
@@ -68,24 +431,24 @@ class AIChatPanel: NSView {
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
 
             inputRow.topAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: 8),
-            inputRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            inputRow.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            inputRow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            inputRow.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             inputRow.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
 
             settingsButton.widthAnchor.constraint(equalToConstant: 70),
-            sendButton.widthAnchor.constraint(equalToConstant: 50),
+            sendButton.widthAnchor.constraint(equalToConstant: 55),
             inputRow.heightAnchor.constraint(equalToConstant: 32),
         ])
 
-        // Show welcome or settings prompt
+        // Welcome message
         if DataStore.shared.aiApiKey.isEmpty {
-            appendSystemMessage("请先点击「⚙ 配置」设置 AI 服务的 API 地址和密钥，然后就可以和我对话了。\n\n支持的 API：\n• OpenAI (https://api.openai.com/v1)\n• DeepSeek (https://api.deepseek.com/v1)\n• Ollama 本地 (http://localhost:11434/v1)\n• 其他兼容 OpenAI 格式的服务")
+            appendMessage("欢迎使用小冷工具箱 AI 助手！请先点击「⚙ 配置」设置 API 地址和密钥。\n\n**支持的 API：**\n- OpenAI (`https://api.openai.com/v1`)\n- DeepSeek (`https://api.deepseek.com/v1`)\n- Ollama 本地 (`http://localhost:11434/v1`)\n- 其他兼容 OpenAI 格式的服务", role: "system")
         } else {
-            appendSystemMessage("AI 助手已就绪！我可以帮你：\n• 分析当前工具箱的安装状态\n• 推荐缺失的安全/开发工具\n• 生成批量导入列表\n• 回答工具使用问题\n\n试试问：「帮我扫描一下还缺哪些安全工具？」")
+            appendMessage("AI 助手已就绪！我可以帮你：\n- 分析当前工具箱的安装状态\n- 推荐缺失的安全/开发工具\n- 生成批量导入列表\n- 回答工具使用问题\n\n试试问：**「帮我扫描一下还缺哪些安全工具？」**", role: "system")
         }
     }
 
@@ -134,124 +497,62 @@ class AIChatPanel: NSView {
         store.aiModel = modelField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "gpt-4o" : modelField.stringValue
         store.save()
 
-        appendSystemMessage("✓ AI 配置已更新 (模型: \(store.aiModel))，可以开始对话了！")
+        appendMessage("AI 配置已更新（模型: \(store.aiModel)），可以开始对话了！", role: "system")
     }
 
-    // MARK: - Message Display
+    // MARK: - Message Display (Incremental, Bottom-Growing)
 
     private func appendMessage(_ text: String, role: String) {
         messages.append(ChatMessage(role: role, content: text))
-        rebuildChatView()
-    }
 
-    private func appendSystemMessage(_ text: String) {
-        appendMessage(text, role: "system")
-    }
+        let bubble = ChatBubbleView(text: text, role: role)
+        bubble.translatesAutoresizingMaskIntoConstraints = false
+        chatContainer.addSubview(bubble)
 
-    private func rebuildChatView() {
-        chatContainer.subviews.forEach { $0.removeFromSuperview() }
-        var yPos: CGFloat = 8
-
-        for msg in messages {
-            let bubble = makeBubble(msg.content, role: msg.role)
-            bubble.frame.origin = CGPoint(x: msg.role == "user" ? 60 : 8, y: yPos)
-            chatContainer.addSubview(bubble)
-            yPos += bubble.frame.height + 8
-        }
-
-        chatContainer.frame = NSRect(x: 0, y: 0, width: scrollView.contentSize.width, height: yPos)
-        scrollView.documentView = chatContainer
-
-        // Scroll to bottom
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            let maxScroll = self.chatContainer.frame.height - self.scrollView.contentSize.height
-            if maxScroll > 0 {
-                self.scrollView.contentView.scroll(to: NSPoint(x: 0, y: maxScroll))
-            }
-        }
-    }
-
-    private func makeBubble(_ text: String, role: String) -> NSView {
-        let isUser = role == "user"
-        let isSystem = role == "system"
-
-        let bubble = NSView()
-        bubble.wantsLayer = true
-
-        let bgColor: NSColor
-        let textColor: NSColor
-        if isSystem {
-            bgColor = NSColor(white: 0.2, alpha: 0.8)
-            textColor = NSColor.white.withAlphaComponent(0.8)
-        } else if isUser {
-            bgColor = NSColor(red: 0.2, green: 0.45, blue: 0.8, alpha: 1)
-            textColor = .white
+        let prevCount = chatContainer.subviews.count - 1
+        let topConstraint: NSLayoutConstraint
+        if prevCount > 0 {
+            let prev = chatContainer.subviews[prevCount - 1]
+            topConstraint = bubble.topAnchor.constraint(equalTo: prev.bottomAnchor, constant: 14)
         } else {
-            bgColor = NSColor(white: 0.22, alpha: 1)
-            textColor = NSColor.white.withAlphaComponent(0.9)
+            topConstraint = bubble.topAnchor.constraint(equalTo: chatContainer.topAnchor, constant: 8)
         }
-        bubble.layer?.backgroundColor = bgColor.cgColor
-        bubble.layer?.cornerRadius = 8
 
-        let label = NSTextField(labelWithString: text)
-        label.font = isSystem ? .systemFont(ofSize: 12) : .systemFont(ofSize: 13)
-        label.textColor = textColor
-        label.preferredMaxLayoutWidth = 360
-        label.translatesAutoresizingMaskIntoConstraints = false
-
-        bubble.addSubview(label)
         NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 10),
-            label.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
-            label.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
-            label.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -10),
+            topConstraint,
+            bubble.leadingAnchor.constraint(equalTo: chatContainer.leadingAnchor, constant: 8),
+            bubble.trailingAnchor.constraint(equalTo: chatContainer.trailingAnchor, constant: -8),
         ])
 
-        // Calculate size
-        label.sizeToFit()
-        let width = min(label.frame.width + 24, 400)
-        let height = label.frame.height + 20
-        bubble.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        chatContainer.layoutSubtreeIfNeeded()
 
-        // Copy button for assistant messages (non-system)
-        if !isSystem && !text.isEmpty {
-            let copyBtn = NSButton(title: "复制", target: self, action: #selector(copyBubbleText(_:)))
-            copyBtn.bezelStyle = .inline
-            copyBtn.isBordered = false
-            copyBtn.font = .systemFont(ofSize: 10)
-            copyBtn.contentTintColor = NSColor.white.withAlphaComponent(0.5)
-            copyBtn.toolTip = text
-            copyBtn.translatesAutoresizingMaskIntoConstraints = false
-            bubble.addSubview(copyBtn)
-            NSLayoutConstraint.activate([
-                copyBtn.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -4),
-                copyBtn.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -2),
-            ])
-        }
+        // Grow container
+        let totalH = chatContainer.subviews.reduce(0) { max($0, $1.frame.maxY) } + 8
+        chatContainer.frame = NSRect(x: 0, y: 0,
+                                      width: scrollView.contentSize.width,
+                                      height: max(totalH, scrollView.contentSize.height))
 
-        return bubble
+        scrollToBottom()
     }
 
-    @objc private func copyBubbleText(_ sender: NSButton) {
-        guard let text = sender.toolTip else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        let orig = sender.title
-        sender.title = "✓"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { sender.title = orig }
+    private func scrollToBottom() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self,
+                  let last = self.chatContainer.subviews.last else { return }
+            self.scrollView.contentView.scroll(to: NSPoint(x: 0, y: max(0, last.frame.maxY - self.scrollView.contentSize.height + 8)))
+            self.scrollView.reflectScrolledClipView(self.scrollView.contentView)
+        }
     }
 
     // MARK: - Send Message & API Call
 
     @objc private func sendMessage() {
         let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        guard !isLoading else { return }
+        guard !text.isEmpty, !isLoading else { return }
 
         let store = DataStore.shared
         guard !store.aiApiKey.isEmpty, !store.aiBaseUrl.isEmpty else {
-            appendSystemMessage("请先配置 AI 服务的 API 地址和密钥。")
+            appendMessage("请先配置 AI 服务的 API 地址和密钥。", role: "system")
             return
         }
 
@@ -261,10 +562,9 @@ class AIChatPanel: NSView {
         sendButton.isEnabled = false
         sendButton.title = "..."
 
-        // Build messages array
+        // Build messages array for API
         var apiMessages: [[String: String]] = []
 
-        // System prompt with toolbox context
         let systemPrompt = """
         你是「小冷工具箱」的 AI 助手。你帮助用户管理和优化他们的开发工具和安全工具集合。
 
@@ -290,7 +590,6 @@ class AIChatPanel: NSView {
             apiMessages.append(["role": msg.role, "content": msg.content])
         }
 
-        // API call
         callAI(messages: apiMessages) { [weak self] result in
             DispatchQueue.main.async {
                 self?.isLoading = false
@@ -301,7 +600,7 @@ class AIChatPanel: NSView {
                 case .success(let reply):
                     self?.appendMessage(reply, role: "assistant")
                 case .failure(let error):
-                    self?.appendSystemMessage("⚠ 请求失败: \(error.localizedDescription)")
+                    self?.appendMessage("请求失败: \(error.localizedDescription)", role: "system")
                 }
             }
         }
@@ -338,18 +637,15 @@ class AIChatPanel: NSView {
                 completion(.failure(error))
                 return
             }
-
             guard let data = data else {
                 completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "无响应数据"])))
                 return
             }
-
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
                 let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
                 completion(.failure(NSError(domain: "", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode): \(errorBody)"])))
                 return
             }
-
             do {
                 let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
                 let choices = json?["choices"] as? [[String: Any]]
