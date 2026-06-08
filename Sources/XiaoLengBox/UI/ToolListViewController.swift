@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 // MARK: - ToolListViewController
 
 class ToolListViewController: NSViewController,
-    NSCollectionViewDataSource, NSCollectionViewDelegate {
+    NSCollectionViewDataSource, NSCollectionViewDelegate, NSTextFieldDelegate {
 
     var currentCategory: Category?
     private let collectionView = DoubleClickCollectionView()
@@ -386,79 +386,99 @@ class ToolListViewController: NSViewController,
 
     private var installGuidePopover: NSPopover?
 
+    /// Resolves the display install hint for a tool: custom > preset > fallback
+    private func resolvedHint(for tool: Tool) -> String {
+        if let custom = tool.customInstallHint, !custom.isEmpty { return custom }
+        if let presetId = tool.presetId, let preset = PresetCatalog.findPresetTool(id: presetId) {
+            return preset.installHint
+        }
+        return "手动设置路径"
+    }
+
     @objc func showInstallGuide(_ sender: NSButton) {
         guard let cat = currentCategory, cat.type == "normal" else { return }
         let tools = DataStore.shared.tools(for: cat.id)
         guard !tools.isEmpty else { return }
 
-        // Build popover content
         let contentVC = NSViewController()
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 0))
-        container.wantsLayer = true
-        container.layer?.backgroundColor = NSColor(white: 0.12, alpha: 1.0).cgColor
+        let padding: CGFloat = 12
+        let rowH: CGFloat = 58
 
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 420, height: 0))
+        let scrollView = NSScrollView()
         scrollView.drawsBackground = false
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
 
-        let clipView = NSClipView()
         let docView = NSView()
         docView.wantsLayer = true
-
         var yPos: CGFloat = 0
-        let padding: CGFloat = 12
-        let rowHeight: CGFloat = 52
 
         // Header
         let header = NSTextField(labelWithString: "\(cat.name) — 安装指引")
         header.font = .boldSystemFont(ofSize: 14)
         header.textColor = .white
-        header.frame = NSRect(x: padding, y: yPos + 4, width: 396, height: 22)
+        header.frame = NSRect(x: padding, y: yPos + 6, width: 400, height: 22)
         docView.addSubview(header)
-        yPos += 32
+        yPos += 34
 
-        // Separator
-        let sep = NSView(frame: NSRect(x: padding, y: yPos, width: 396, height: 1))
+        let sep = NSView(frame: NSRect(x: padding, y: yPos, width: 420, height: 1))
         sep.wantsLayer = true
         sep.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.15).cgColor
         docView.addSubview(sep)
-        yPos += 8
+        yPos += 10
 
-        for tool in tools {
-            let presetTool = tool.presetId.flatMap { PresetCatalog.findPresetTool(id: $0) }
-            let hint = presetTool?.installHint ?? "手动设置路径"
+        for (index, tool) in tools.enumerated() {
+            let hint = resolvedHint(for: tool)
             let isDetected = tool.detectionStatus == .detected || tool.detectionStatus == .custom
             let statusIcon = isDetected ? "✓" : "○"
             let statusColor: NSColor = isDetected
                 ? NSColor(red: 0.3, green: 0.85, blue: 0.4, alpha: 1)
                 : NSColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1)
 
-            let row = NSView(frame: NSRect(x: 0, y: yPos, width: 420, height: rowHeight))
+            let row = NSView(frame: NSRect(x: 0, y: yPos, width: 440, height: rowH))
             row.wantsLayer = true
 
             // Status icon
             let statusLabel = NSTextField(labelWithString: statusIcon)
             statusLabel.font = .systemFont(ofSize: 14, weight: .bold)
             statusLabel.textColor = statusColor
-            statusLabel.frame = NSRect(x: padding, y: 16, width: 18, height: 20)
+            statusLabel.frame = NSRect(x: padding, y: 20, width: 18, height: 20)
             row.addSubview(statusLabel)
 
             // Tool name
             let nameLabel = NSTextField(labelWithString: tool.name)
             nameLabel.font = .systemFont(ofSize: 13, weight: .medium)
             nameLabel.textColor = .white
-            nameLabel.frame = NSRect(x: padding + 22, y: 26, width: 240, height: 18)
+            nameLabel.frame = NSRect(x: padding + 22, y: 32, width: 200, height: 18)
             row.addSubview(nameLabel)
 
-            // Install hint
-            let hintLabel = NSTextField(labelWithString: hint)
-            hintLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-            hintLabel.textColor = NSColor.white.withAlphaComponent(0.6)
-            hintLabel.frame = NSRect(x: padding + 22, y: 8, width: 290, height: 16)
-            hintLabel.lineBreakMode = .byTruncatingTail
-            hintLabel.toolTip = hint
-            row.addSubview(hintLabel)
+            // Editable hint text field
+            let hintField = NSTextField(frame: NSRect(x: padding + 22, y: 8, width: 300, height: 22))
+            hintField.stringValue = hint
+            hintField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+            hintField.textColor = NSColor.white.withAlphaComponent(0.75)
+            hintField.backgroundColor = NSColor.white.withAlphaComponent(0.06)
+            hintField.isBordered = true
+            hintField.isEditable = false
+            hintField.isSelectable = true
+            hintField.isBezeled = false
+            hintField.focusRingType = .none
+            hintField.tag = index  // use tag to identify which tool
+            hintField.delegate = self
+            hintField.target = self
+            hintField.action = #selector(hintFieldEditingEnded(_:))
+            row.addSubview(hintField)
+
+            // Edit button
+            let editBtn = NSButton(title: "编辑", target: self, action: #selector(toggleHintEdit(_:)))
+            editBtn.bezelStyle = .inline
+            editBtn.font = .systemFont(ofSize: 11)
+            editBtn.contentTintColor = NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1)
+            editBtn.isBordered = false
+            editBtn.frame = NSRect(x: 370, y: 30, width: 32, height: 22)
+            editBtn.tag = index
+            editBtn.toolTip = "点击编辑安装命令"
+            row.addSubview(editBtn)
 
             // Copy button
             let copyBtn = NSButton(title: "复制", target: self, action: #selector(copyInstallHint(_:)))
@@ -466,51 +486,112 @@ class ToolListViewController: NSViewController,
             copyBtn.font = .systemFont(ofSize: 11)
             copyBtn.contentTintColor = NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1)
             copyBtn.isBordered = false
-            copyBtn.frame = NSRect(x: 360, y: 16, width: 44, height: 22)
-            copyBtn.toolTip = hint
+            copyBtn.frame = NSRect(x: 400, y: 30, width: 32, height: 22)
+            copyBtn.tag = index
             row.addSubview(copyBtn)
 
             docView.addSubview(row)
-            yPos += rowHeight
+            yPos += rowH
         }
 
-        docView.frame = NSRect(x: 0, y: 0, width: 420, height: yPos + padding)
+        docView.frame = NSRect(x: 0, y: 0, width: 440, height: yPos + padding)
         scrollView.documentView = docView
 
-        let maxH: CGFloat = 400
+        let maxH: CGFloat = 420
         let contentH = min(yPos + padding, maxH)
-        scrollView.frame = NSRect(x: 0, y: 0, width: 420, height: contentH)
+        scrollView.frame = NSRect(x: 0, y: 0, width: 440, height: contentH)
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: contentH))
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor(white: 0.12, alpha: 1.0).cgColor
         container.addSubview(scrollView)
-        container.frame = NSRect(x: 0, y: 0, width: 420, height: contentH)
+        scrollView.frame = container.bounds
 
         contentVC.view = container
 
-        // Create/show popover
-        if let existing = installGuidePopover, existing.isShown {
-            existing.close()
-        }
+        if let existing = installGuidePopover, existing.isShown { existing.close() }
         let popover = NSPopover()
         popover.contentViewController = contentVC
-        popover.contentSize = NSSize(width: 420, height: contentH)
+        popover.contentSize = NSSize(width: 440, height: contentH)
         popover.behavior = .transient
         popover.animates = true
         installGuidePopover = popover
         popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
     }
 
-    @objc private func copyInstallHint(_ sender: NSButton) {
-        guard let hint = sender.toolTip else { return }
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(hint, forType: .string)
+    @objc private func toggleHintEdit(_ sender: NSButton) {
+        guard let docView = (installGuidePopover?.contentViewController?.view.subviews.first as? NSScrollView)?.documentView else { return }
+        let idx = sender.tag
+        // Find the hint field and edit button in the row
+        for subview in docView.subviews {
+            guard let row = subview as? NSView else { continue }
+            for child in row.subviews {
+                if let field = child as? NSTextField, field.tag == idx, field.frame.height == 22 {
+                    if field.isEditable {
+                        // Save mode → disable editing
+                        field.isEditable = false
+                        field.isBezeled = false
+                        field.backgroundColor = NSColor.white.withAlphaComponent(0.06)
+                        sender.title = "编辑"
+                        saveHintForTool(index: idx, newHint: field.stringValue)
+                    } else {
+                        // Edit mode → enable editing
+                        field.isEditable = true
+                        field.isBezeled = true
+                        field.backgroundColor = NSColor.white.withAlphaComponent(0.12)
+                        sender.title = "保存"
+                        installGuidePopover?.contentViewController?.view.window?.makeFirstResponder(field)
+                    }
+                    return
+                }
+            }
+        }
+    }
 
-        // Brief visual feedback
-        let original = sender.title
-        sender.title = "已复制"
-        sender.contentTintColor = NSColor(red: 0.3, green: 0.85, blue: 0.4, alpha: 1)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            sender.title = original
-            sender.contentTintColor = NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1)
+    @objc private func hintFieldEditingEnded(_ sender: NSTextField) {
+        saveHintForTool(index: sender.tag, newHint: sender.stringValue)
+        sender.isEditable = false
+        sender.isBezeled = false
+        sender.backgroundColor = NSColor.white.withAlphaComponent(0.06)
+        // Reset edit button text
+        guard let docView = (installGuidePopover?.contentViewController?.view.subviews.first as? NSScrollView)?.documentView else { return }
+        for subview in docView.subviews {
+            for child in (subview as? NSView)?.subviews ?? [] {
+                if let btn = child as? NSButton, btn.tag == sender.tag && (btn.title == "保存" || btn.title == "编辑") {
+                    btn.title = "编辑"
+                }
+            }
+        }
+    }
+
+    private func saveHintForTool(index: Int, newHint: String) {
+        guard let cat = currentCategory else { return }
+        var tools = DataStore.shared.tools(for: cat.id)
+        guard index < tools.count else { return }
+        let trimmed = newHint.trimmingCharacters(in: .whitespacesAndNewlines)
+        tools[index].customInstallHint = trimmed.isEmpty ? nil : trimmed
+        DataStore.shared.updateTool(tools[index], in: cat.id)
+    }
+
+    @objc private func copyInstallHint(_ sender: NSButton) {
+        guard let docView = (installGuidePopover?.contentViewController?.view.subviews.first as? NSScrollView)?.documentView else { return }
+        let idx = sender.tag
+        for subview in docView.subviews {
+            for child in (subview as? NSView)?.subviews ?? [] {
+                if let field = child as? NSTextField, field.tag == idx, field.frame.height == 22 {
+                    let pb = NSPasteboard.general
+                    pb.clearContents()
+                    pb.setString(field.stringValue, forType: .string)
+                    let original = sender.title
+                    sender.title = "✓"
+                    sender.contentTintColor = NSColor(red: 0.3, green: 0.85, blue: 0.4, alpha: 1)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        sender.title = original
+                        sender.contentTintColor = NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1)
+                    }
+                    return
+                }
+            }
         }
     }
 

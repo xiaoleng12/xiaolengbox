@@ -9,16 +9,18 @@ struct Tool: Codable, Identifiable {
     var appPath: String
     var detectionStatus: DetectionStatus
     var presetId: String?
+    var customInstallHint: String?
 
-    init(id: UUID = UUID(), name: String, appPath: String, detectionStatus: DetectionStatus = .custom, presetId: String? = nil) {
+    init(id: UUID = UUID(), name: String, appPath: String, detectionStatus: DetectionStatus = .custom, presetId: String? = nil, customInstallHint: String? = nil) {
         self.id = id
         self.name = name
         self.appPath = appPath
         self.detectionStatus = detectionStatus
         self.presetId = presetId
+        self.customInstallHint = customInstallHint
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, appPath, detectionStatus, presetId }
+    private enum CodingKeys: String, CodingKey { case id, name, appPath, detectionStatus, presetId, customInstallHint }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -27,6 +29,7 @@ struct Tool: Codable, Identifiable {
         appPath = try c.decode(String.self, forKey: .appPath)
         detectionStatus = try c.decodeIfPresent(DetectionStatus.self, forKey: .detectionStatus) ?? .custom
         presetId = try c.decodeIfPresent(String.self, forKey: .presetId)
+        customInstallHint = try c.decodeIfPresent(String.self, forKey: .customInstallHint)
     }
 }
 
