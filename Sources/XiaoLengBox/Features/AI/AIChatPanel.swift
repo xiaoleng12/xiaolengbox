@@ -1,55 +1,372 @@
 import AppKit
 
-// MARK: - AI Provider Presets
-
-struct AIProviderPreset {
-    let id: String
-    let name: String
-    let baseUrl: String
-    let models: [String]
-}
-
-enum AIProviderCatalog {
-    static let all: [AIProviderPreset] = [
-        AIProviderPreset(id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1",
-                         models: ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner"]),
-        AIProviderPreset(id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1",
-                         models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]),
-        AIProviderPreset(id: "moonshot", name: "Moonshot (月之暗面)", baseUrl: "https://api.moonshot.cn/v1",
-                         models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]),
-        AIProviderPreset(id: "zhipu", name: "智谱 AI (GLM)", baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-                         models: ["glm-4-plus", "glm-4-flash", "glm-4-long"]),
-        AIProviderPreset(id: "siliconflow", name: "SiliconFlow", baseUrl: "https://api.siliconflow.cn/v1",
-                         models: ["deepseek-ai/DeepSeek-V4", "deepseek-ai/DeepSeek-R1",
-                                  "Qwen/Qwen2.5-72B-Instruct", "THUDM/glm-4-9b-chat"]),
-        AIProviderPreset(id: "ollama", name: "Ollama (本地)", baseUrl: "http://localhost:11434/v1",
-                         models: ["llama3", "qwen2", "deepseek-r1", "codellama", "mistral"]),
-        AIProviderPreset(id: "custom", name: "自定义", baseUrl: "", models: []),
-    ]
-    static func find(id: String) -> AIProviderPreset? { all.first { $0.id == id } }
-}
-
 // MARK: - FAQ
 
 struct FAQEntry { let question: String; let answer: String }
 
 enum FAQCatalog {
     static let entries: [FAQEntry] = [
-        FAQEntry(question: "如何添加工具？",
-                 answer: "点击右上角「＋ 添加工具」按钮，输入工具名称和可执行文件路径即可。\n\n例如添加 VS Code：\n• 名称：VS Code\n• 路径：/usr/local/bin/code\n\n工具箱会自动检测路径是否存在。"),
-        FAQEntry(question: "如何批量导入工具？",
-                 answer: "点击右上角「↓ 导入工具」按钮，按格式粘贴文本（每行一个）：\n\nnmap 路径：/opt/homebrew/bin/nmap\nhydra 路径：/opt/homebrew/bin/hydra\nwireshark 路径：/Applications/Wireshark.app"),
-        FAQEntry(question: "安装指引怎么用？",
-                 answer: "点击顶部「? 安装指引」按钮，弹出所有工具的安装命令（如 brew install nmap），点击复制即可。还可以点「编辑」自定义安装提示。"),
-        FAQEntry(question: "如何使用 AI 助手？",
-                 answer: "1. 点击顶部「AI 助手」进入聊天\n2. 点「⚙ 配置」选择服务商（如 DeepSeek）\n3. 填入 API Key，选择模型，保存\n4. 开始对话！AI 会自动读取工具箱状态"),
-        FAQEntry(question: "支持哪些 AI 服务商？",
-                 answer: "• DeepSeek — 性价比高，推荐国内\n• OpenAI — GPT-4o 等\n• Moonshot — 月之暗面\n• 智谱 AI — GLM 系列\n• SiliconFlow — 开源模型聚合\n• Ollama — 本地运行（免 Key）\n• 自定义 — 任何 OpenAI 兼容 API"),
+        FAQEntry(question: "如何用命令行添加分类？",
+                 answer: PresetAnswers.addCategory),
+        FAQEntry(question: "如何用命令行添加工具/应用？",
+                 answer: PresetAnswers.addTool),
+        FAQEntry(question: "如何用命令行添加 PDF？",
+                 answer: PresetAnswers.addPDF),
+        FAQEntry(question: "如何用命令行添加 Markdown 文档？",
+                 answer: PresetAnswers.addMarkdown),
+        FAQEntry(question: "如何用命令行添加便签？",
+                 answer: PresetAnswers.addSticky),
+        FAQEntry(question: "如何查看所有分类和工具？",
+                 answer: PresetAnswers.viewAll),
         FAQEntry(question: "工具检测状态含义？",
                  answer: "• 绿色 ✓ — 已检测到安装\n• 蓝色 ✓ — 自定义路径\n• 红色 ✗ — 未找到，需安装\n\n点击已安装工具图标可直接启动。"),
         FAQEntry(question: "如何设置壁纸和玻璃模式？",
                  answer: "1. 点「壁纸」选择图片\n2. 点「✦ 玻璃」切换模糊模式\n3. 拖滑块调透明度\n4. 点「✕ 清除」恢复默认"),
     ]
+}
+
+// MARK: - Preset Answers (command-line templates)
+
+enum PresetAnswers {
+
+    static let welcome = """
+    你好！我是小冷工具箱助手，可以帮你通过命令行管理工具箱内容。
+
+    你可以问我：
+    • 如何用命令行添加**分类**
+    • 如何用命令行添加**工具/应用**
+    • 如何用命令行添加 **PDF**
+    • 如何用命令行添加 **Markdown**
+    • 如何用命令行添加**便签**
+    • 如何**查看**所有分类和工具
+
+    也可以点击左下角「? 常见问题」快速查看。
+    """
+
+    static let notFound = """
+    抱歉，我没有理解你的问题。你可以试试：
+
+    • 输入 **添加分类** — 查看命令行添加分类的方法
+    • 输入 **添加工具** — 查看命令行添加工具的方法
+    • 输入 **添加 PDF** — 查看命令行添加 PDF 的方法
+    • 输入 **添加 Markdown** — 查看命令行添加文档的方法
+    • 输入 **查看分类** — 查看所有分类和工具
+
+    也可以点击左下角「? 常见问题」浏览全部帮助。
+    """
+
+    static let addCategory = """
+    ### 命令行添加分类
+
+    数据文件位于工具箱可执行文件同级目录下：
+    `<工具箱路径>/Contents/MacOS/xiaolengbox_data.json`
+
+    以下命令用 `$DATA_FILE` 代替数据文件的实际路径，**请替换为你的实际路径**。
+    操作前请先**关闭工具箱**，修改后**重新打开**生效。
+
+    **添加应用分类：**
+    ```
+    jq '.categories += [{"id":(now|tostring|sha1), "name":"你的分类名", "type":"normal", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+    ```
+
+    **添加 PDF 分类：**
+    ```
+    jq '.categories += [{"id":(now|tostring|sha1), "name":"你的PDF分类", "type":"pdf", "metadata":"/你的/pdf/文件路径.pdf", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+    ```
+
+    **添加 Markdown 分类：**
+    ```
+    jq '.categories += [{"id":(now|tostring|sha1), "name":"你的文档分类", "type":"md", "metadata":"/你的/md/文件路径.md", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+    ```
+
+    **添加便签分类：**
+    ```
+    jq '.categories += [{"id":(now|tostring|sha1), "name":"你的便签", "type":"sticky", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+    ```
+
+    **Python 方式（更易读）：**
+    ```
+    python3 -c "
+    import json, uuid
+    path = '$DATA_FILE'  # 替换为实际路径
+    with open(path) as f: data = json.load(f)
+    data['categories'].append({
+        'id': str(uuid.uuid4()), 'name': '你的分类名',
+        'type': 'normal', 'tools': [], 'isPreset': False,
+        'presetIcon': None, 'metadata': None
+    })
+    with open(path, 'w') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    "
+    ```
+    """
+
+    static let addTool = """
+    ### 命令行添加工具/应用
+
+    数据文件：`<工具箱路径>/Contents/MacOS/xiaolengbox_data.json`
+    用 `$DATA_FILE` 代替实际路径，**请替换为你的实际路径**。
+    操作前请先**关闭工具箱**，修改后**重新打开**生效。
+
+    **向已有分类添加工具：**
+    ```
+    jq '(.categories[] | select(.name=="你的分类名") | .tools) += [{"id":(now|tostring|sha1), "name":"工具名", "appPath":"/你的/工具/路径", "detectionStatus":"custom"}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+    ```
+
+    **批量导入（每行一个，格式：`工具名 路径：/完整路径`）：**
+    ```
+    nmap 路径：/opt/homebrew/bin/nmap
+    hydra 路径：/opt/homebrew/bin/hydra
+    wireshark 路径：/Applications/Wireshark.app
+    ```
+    在工具箱界面点击右上角「↓ 导入工具」粘贴即可。
+
+    **Python 方式：**
+    ```
+    python3 -c "
+    import json, uuid
+    path = '$DATA_FILE'  # 替换为实际路径
+    with open(path) as f: data = json.load(f)
+    for cat in data['categories']:
+        if cat['name'] == '你的分类名':
+            cat['tools'].append({
+                'id': str(uuid.uuid4()), 'name': '工具名',
+                'appPath': '/你的/工具/路径',
+                'detectionStatus': 'custom',
+                'presetId': None, 'customInstallHint': None
+            })
+            break
+    with open(path, 'w') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    "
+    ```
+    """
+
+    static let addPDF = """
+    ### 命令行添加 PDF 文档
+
+    数据文件：`<工具箱路径>/Contents/MacOS/xiaolengbox_data.json`
+    用 `$DATA_FILE` 代替实际路径，**请替换为你的实际路径**。
+    操作前请先**关闭工具箱**，修改后**重新打开**生效。
+
+    **添加 PDF 分类：**
+    ```
+    jq '.categories += [{"id":(now|tostring|sha1), "name":"你的PDF分类名", "type":"pdf", "metadata":"/你的/pdf/文件路径.pdf", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+    ```
+
+    **Python 方式：**
+    ```
+    python3 -c "
+    import json, uuid
+    path = '$DATA_FILE'  # 替换为实际路径
+    with open(path) as f: data = json.load(f)
+    data['categories'].append({
+        'id': str(uuid.uuid4()), 'name': '你的PDF分类名',
+        'type': 'pdf', 'metadata': '/你的/pdf/文件路径.pdf',
+        'tools': [], 'isPreset': False, 'presetIcon': None
+    })
+    with open(path, 'w') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    "
+    ```
+
+    注意：`metadata` 字段填写 PDF 文件的**完整路径**，工具箱会自动加载显示。
+    """
+
+    static let addMarkdown = """
+    ### 命令行添加 Markdown 文档
+
+    数据文件：`<工具箱路径>/Contents/MacOS/xiaolengbox_data.json`
+    用 `$DATA_FILE` 代替实际路径，**请替换为你的实际路径**。
+    操作前请先**关闭工具箱**，修改后**重新打开**生效。
+
+    **添加 Markdown 分类：**
+    ```
+    jq '.categories += [{"id":(now|tostring|sha1), "name":"你的文档分类名", "type":"md", "metadata":"/你的/md/文件路径.md", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+    ```
+
+    **Python 方式：**
+    ```
+    python3 -c "
+    import json, uuid
+    path = '$DATA_FILE'  # 替换为实际路径
+    with open(path) as f: data = json.load(f)
+    data['categories'].append({
+        'id': str(uuid.uuid4()), 'name': '你的文档分类名',
+        'type': 'md', 'metadata': '/你的/md/文件路径.md',
+        'tools': [], 'isPreset': False, 'presetIcon': None
+    })
+    with open(path, 'w') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    "
+    ```
+
+    注意：`metadata` 字段填写 Markdown 文件的**完整路径**。
+    """
+
+    static let addSticky = """
+    ### 命令行添加便签分类
+
+    数据文件：`<工具箱路径>/Contents/MacOS/xiaolengbox_data.json`
+    用 `$DATA_FILE` 代替实际路径，**请替换为你的实际路径**。
+    操作前请先**关闭工具箱**，修改后**重新打开**生效。
+
+    ```
+    jq '.categories += [{"id":(now|tostring|sha1), "name":"你的便签名", "type":"sticky", "tools":[], "isPreset":false}]' "$DATA_FILE" > tmp.json && mv tmp.json "$DATA_FILE"
+    ```
+
+    **Python 方式：**
+    ```
+    python3 -c "
+    import json, uuid
+    path = '$DATA_FILE'  # 替换为实际路径
+    with open(path) as f: data = json.load(f)
+    data['categories'].append({
+        'id': str(uuid.uuid4()), 'name': '你的便签名',
+        'type': 'sticky', 'tools': [], 'isPreset': False,
+        'presetIcon': None, 'metadata': None
+    })
+    with open(path, 'w') as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    "
+    ```
+    """
+
+    static let viewAll = """
+    ### 查看所有分类和工具
+
+    数据文件：`<工具箱路径>/Contents/MacOS/xiaolengbox_data.json`
+    用 `$DATA_FILE` 代替实际路径。
+
+    **查看所有分类名称和类型：**
+    ```
+    jq '.categories[] | {name, type}' "$DATA_FILE"
+    ```
+
+    **查看某个分类下的所有工具：**
+    ```
+    jq '.categories[] | select(.name=="分类名") | .tools[] | {name, appPath}' "$DATA_FILE"
+    ```
+
+    **导出完整工具箱状态：**
+    ```
+    jq '.' "$DATA_FILE"
+    ```
+
+    **数据文件结构说明：**
+    ```
+    {
+      "categories": [
+        {
+          "id": "UUID",
+          "name": "分类名称",
+          "type": "normal",      // normal=应用, pdf=PDF, md=Markdown, sticky=便签
+          "metadata": null,      // pdf/md 类型时为文件路径
+          "tools": [
+            {
+              "id": "UUID",
+              "name": "工具名",
+              "appPath": "/工具/路径",
+              "detectionStatus": "custom",
+              "presetId": null,
+              "customInstallHint": null
+            }
+          ]
+        }
+      ]
+    }
+    ```
+    """
+
+    static let toolboxOverview: () -> String = {
+        var lines = "### 工具箱当前状态\n\n"
+        let store = DataStore.shared
+        if store.categories.isEmpty {
+            lines += "工具箱暂无分类。可以问我如何用命令行添加分类和工具。\n"
+        } else {
+            for cat in store.categories where cat.type == "normal" {
+                lines += "**\(cat.name)**"
+                if cat.tools.isEmpty {
+                    lines += " — (空)\n"
+                } else {
+                    lines += " — \(cat.tools.count) 个工具\n"
+                    for tool in cat.tools.prefix(5) {
+                        lines += "  • \(tool.name)\n"
+                    }
+                    if cat.tools.count > 5 {
+                        lines += "  • ... 还有 \(cat.tools.count - 5) 个\n"
+                    }
+                }
+                lines += "\n"
+            }
+        }
+        return lines
+    }
+}
+
+// MARK: - Keyword Matching
+
+struct PresetTrigger {
+    let keywords: [[String]]  // each sub-array = variants; match if ≥1 variant from EACH group
+    let answer: String
+}
+
+enum PresetMatcher {
+    static let triggers: [PresetTrigger] = [
+        // Specific operations (more keyword groups = higher specificity)
+        PresetTrigger(
+            keywords: [["添加", "新建", "创建", "导入", "增加"], ["分类"]],
+            answer: PresetAnswers.addCategory),
+        PresetTrigger(
+            keywords: [["添加", "导入", "增加"], ["工具", "应用", "app"]],
+            answer: PresetAnswers.addTool),
+        PresetTrigger(
+            keywords: [["添加", "导入", "增加"], ["pdf"]],
+            answer: PresetAnswers.addPDF),
+        PresetTrigger(
+            keywords: [["添加", "导入", "增加"], ["md", "markdown", "文档"]],
+            answer: PresetAnswers.addMarkdown),
+        PresetTrigger(
+            keywords: [["添加", "导入", "增加"], ["便签", "sticky", "笔记", "备忘"]],
+            answer: PresetAnswers.addSticky),
+
+        // View operations
+        PresetTrigger(
+            keywords: [["查看", "列出", "显示", "所有"], ["分类", "工具"]],
+            answer: PresetAnswers.viewAll),
+        PresetTrigger(
+            keywords: [["查看", "列出", "显示"], ["所有", "全部", "列表"]],
+            answer: PresetAnswers.viewAll),
+    ]
+
+    // Topic-level triggers (single keyword group, for "how to use" / "help" / overview)
+    static let topicTriggers: [PresetTrigger] = [
+        PresetTrigger(
+            keywords: [["命令行", "终端", "cli", "命令"]],
+            answer: PresetAnswers.addCategory),
+        PresetTrigger(
+            keywords: [["怎么用", "使用方法", "帮助", "help"]],
+            answer: PresetAnswers.welcome),
+        PresetTrigger(
+            keywords: [["状态", "概览", "有什么", "有哪些"]],
+            answer: PresetAnswers.toolboxOverview()),
+    ]
+
+    static func match(_ input: String) -> String {
+        let q = input.lowercased()
+
+        // Try specific multi-keyword triggers first
+        for t in triggers {
+            if t.keywords.allSatisfy({ group in group.contains(where: { q.contains($0) }) }) {
+                return t.answer
+            }
+        }
+
+        // Try topic-level triggers
+        for t in topicTriggers {
+            if t.keywords.allSatisfy({ group in group.contains(where: { q.contains($0) }) }) {
+                return t.answer
+            }
+        }
+
+        // Fallback
+        return PresetAnswers.notFound
+    }
 }
 
 // MARK: - FAQ Panel
@@ -153,7 +470,7 @@ private class ChatBubbleView: NSView {
         wantsLayer = true
 
         // Name
-        let nameStr = isSystem ? "系统提示" : (isUser ? "我" : "AI 助手")
+        let nameStr = isSystem ? "系统提示" : (isUser ? "我" : "助手")
         let name = NSTextField(labelWithString: nameStr)
         name.font = .systemFont(ofSize: 11)
         name.textColor = .secondaryLabelColor
@@ -192,7 +509,6 @@ private class ChatBubbleView: NSView {
             cp.contentTintColor = isUser ? NSColor.white.withAlphaComponent(0.6) : NSColor.black.withAlphaComponent(0.3)
             cp.toolTip = text
             bubble.addSubview(cp)
-            // Position at bottom-right of bubble
             cp.frame = NSRect(x: bubbleW - 40, y: 2, width: 34, height: 16)
         }
 
@@ -318,14 +634,12 @@ private class FlippedView: NSView {
 
 class AIChatPanel: NSView {
     private let scrollView = NSScrollView()
-    private let chatContainer = FlippedView()  // flipped: Y=0 at top
+    private let chatContainer = FlippedView()
     private let inputField = NSTextField()
     private let sendButton = NSButton()
-    private let settingsButton = NSButton()
     private let faqButton = NSButton()
     private var inputRowRef: NSStackView?
     private var messages: [ChatMessage] = []
-    private var isLoading = false
     private var faqPanel: FAQPanelView?
     private var totalContentHeight: CGFloat = 0
 
@@ -339,7 +653,6 @@ class AIChatPanel: NSView {
     private func buildUI() {
         layer?.backgroundColor = NSColor(white: 0.97, alpha: 1).cgColor
 
-        // chatContainer: frame-based documentView
         chatContainer.wantsLayer = true
         scrollView.documentView = chatContainer
         scrollView.hasVerticalScroller = true
@@ -347,7 +660,7 @@ class AIChatPanel: NSView {
         scrollView.automaticallyAdjustsContentInsets = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        inputField.placeholderString = "输入消息… (例如: 帮我推荐安全工具并生成导入列表)"
+        inputField.placeholderString = "输入问题… (例如: 如何添加分类、如何添加工具)"
         inputField.font = .systemFont(ofSize: 13); inputField.isEditable = true
         inputField.bezelStyle = .roundedBezel; inputField.target = self
         inputField.action = #selector(sendMessage); inputField.translatesAutoresizingMaskIntoConstraints = false
@@ -356,15 +669,11 @@ class AIChatPanel: NSView {
         sendButton.target = self; sendButton.action = #selector(sendMessage)
         sendButton.keyEquivalent = "\r"; sendButton.translatesAutoresizingMaskIntoConstraints = false
 
-        settingsButton.title = "⚙ 配置"; settingsButton.bezelStyle = .rounded
-        settingsButton.target = self; settingsButton.action = #selector(showSettings)
-        settingsButton.translatesAutoresizingMaskIntoConstraints = false
-
         faqButton.title = "? 常见问题"; faqButton.bezelStyle = .rounded
         faqButton.target = self; faqButton.action = #selector(toggleFAQ)
         faqButton.translatesAutoresizingMaskIntoConstraints = false
 
-        let inputRow = NSStackView(views: [faqButton, settingsButton, inputField, sendButton])
+        let inputRow = NSStackView(views: [faqButton, inputField, sendButton])
         inputRow.orientation = .horizontal; inputRow.spacing = 8
         inputRow.translatesAutoresizingMaskIntoConstraints = false
         inputRowRef = inputRow
@@ -379,7 +688,6 @@ class AIChatPanel: NSView {
             inputRow.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             inputRow.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
             faqButton.widthAnchor.constraint(equalToConstant: 90),
-            settingsButton.widthAnchor.constraint(equalToConstant: 70),
             sendButton.widthAnchor.constraint(equalToConstant: 55),
             inputRow.heightAnchor.constraint(equalToConstant: 32),
         ])
@@ -388,11 +696,7 @@ class AIChatPanel: NSView {
     }
 
     private func showWelcome() {
-        if DataStore.shared.aiApiKey.isEmpty {
-            appendMessage("欢迎使用小冷工具箱 AI 助手！\n\n请先点击「⚙ 配置」选择服务商并填入 API Key。\n\n左下角「? 常见问题」可以查看使用帮助。", role: "system")
-        } else {
-            appendMessage("AI 助手已就绪！我可以帮你：\n- 分析工具箱安装状态\n- 推荐缺失工具\n- 生成批量导入列表\n\n试试问：**「帮我扫描一下还缺哪些安全工具？」**", role: "system")
-        }
+        appendMessage(PresetAnswers.welcome, role: "system")
     }
 
     // MARK: - FAQ
@@ -415,76 +719,6 @@ class AIChatPanel: NSView {
             panel.heightAnchor.constraint(equalToConstant: 320),
         ])
         faqPanel = panel
-    }
-
-    // MARK: - Settings
-
-    @objc private func showSettings() {
-        let alert = NSAlert(); alert.messageText = "AI 服务配置"
-        alert.addButton(withTitle: "保存"); alert.addButton(withTitle: "取消")
-        let store = DataStore.shared
-        let c = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 195))
-
-        let pLabel = mkLabel("服务商：", y: 170)
-        let pPopup = NSPopUpButton(frame: NSRect(x: 80, y: 168, width: 300, height: 26))
-        for p in AIProviderCatalog.all { pPopup.addItem(withTitle: p.name); pPopup.lastItem?.representedObject = p.id }
-
-        let kLabel = mkLabel("API Key：", y: 132)
-        let kField = NSSecureTextField(frame: NSRect(x: 80, y: 132, width: 300, height: 24))
-        kField.placeholderString = "sk-..."; kField.stringValue = store.aiApiKey
-
-        let mLabel = mkLabel("模型：", y: 96)
-        let mPopup = NSPopUpButton(frame: NSRect(x: 80, y: 94, width: 300, height: 26))
-
-        let uLabel = mkLabel("API 地址：", y: 60)
-        let uField = NSTextField(frame: NSRect(x: 80, y: 58, width: 300, height: 24))
-        uLabel.isHidden = true; uField.isHidden = true
-
-        let hint = NSTextField(labelWithString: "选择服务商后填入 API Key 即可，Ollama 本地无需 Key")
-        hint.frame = NSRect(x: 80, y: 28, width: 300, height: 18); hint.font = .systemFont(ofSize: 11); hint.textColor = .secondaryLabelColor
-
-        let saved = store.aiProvider.isEmpty ? "deepseek" : store.aiProvider
-        if let idx = AIProviderCatalog.all.firstIndex(where: { $0.id == saved }) { pPopup.selectItem(at: idx) }
-        fillModels(mPopup, pid: saved, current: store.aiModel)
-        uField.stringValue = store.aiBaseUrl
-        let isCustom = saved == "custom"; uLabel.isHidden = !isCustom; uField.isHidden = !isCustom
-
-        pPopup.target = self; pPopup.action = #selector(onProvider(_:))
-        objc_setAssociatedObject(pPopup, "mp", mPopup, .OBJC_ASSOCIATION_RETAIN)
-        objc_setAssociatedObject(pPopup, "ul", uLabel, .OBJC_ASSOCIATION_RETAIN)
-        objc_setAssociatedObject(pPopup, "uf", uField, .OBJC_ASSOCIATION_RETAIN)
-
-        [pLabel, pPopup, kLabel, kField, mLabel, mPopup, uLabel, uField, hint].forEach { c.addSubview($0) }
-        alert.accessoryView = c; alert.window.initialFirstResponder = kField
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
-        let pid = (pPopup.selectedItem?.representedObject as? String) ?? "deepseek"
-        store.aiProvider = pid; store.aiApiKey = kField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if pid == "custom" { store.aiBaseUrl = uField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines); store.aiModel = mPopup.titleOfSelectedItem ?? "gpt-4o" }
-        else if let preset = AIProviderCatalog.find(id: pid) { store.aiBaseUrl = preset.baseUrl; store.aiModel = mPopup.titleOfSelectedItem ?? preset.models[0] }
-        store.save()
-        appendMessage("AI 配置已更新（\(AIProviderCatalog.find(id: pid)?.name ?? pid) / \(store.aiModel)）", role: "system")
-    }
-
-    @objc private func onProvider(_ s: NSPopUpButton) {
-        guard let pid = s.selectedItem?.representedObject as? String,
-              let mp = objc_getAssociatedObject(s, "mp") as? NSPopUpButton,
-              let ul = objc_getAssociatedObject(s, "ul") as? NSTextField,
-              let uf = objc_getAssociatedObject(s, "uf") as? NSTextField else { return }
-        fillModels(mp, pid: pid, current: nil)
-        let ic = pid == "custom"; ul.isHidden = !ic; uf.isHidden = !ic
-        if !ic, let p = AIProviderCatalog.find(id: pid) { uf.stringValue = p.baseUrl }
-    }
-
-    private func fillModels(_ popup: NSPopUpButton, pid: String, current: String?) {
-        popup.removeAllItems()
-        if let p = AIProviderCatalog.find(id: pid) { for m in p.models { popup.addItem(withTitle: m) } }
-        if let c = current, !c.isEmpty, popup.indexOfItem(withTitle: c) == -1 { popup.addItem(withTitle: c) }
-        if let c = current, !c.isEmpty { popup.selectItem(withTitle: c) }
-    }
-
-    private func mkLabel(_ t: String, y: CGFloat) -> NSTextField {
-        let l = NSTextField(labelWithString: t); l.frame = NSRect(x: 0, y: y, width: 78, height: 24); l.font = .systemFont(ofSize: 12); return l
     }
 
     // MARK: - Append Message (Frame-Based)
@@ -521,75 +755,14 @@ class AIChatPanel: NSView {
         }
     }
 
-    // MARK: - Send & API
+    // MARK: - Send (Keyword Matching)
 
     @objc private func sendMessage() {
         let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isLoading else { return }
-        let store = DataStore.shared
-        guard !store.aiApiKey.isEmpty || store.aiProvider == "ollama", !store.aiBaseUrl.isEmpty else {
-            appendMessage("请先点击「⚙ 配置」选择服务商并填入 API Key。", role: "system"); return
-        }
+        guard !text.isEmpty else { return }
         inputField.stringValue = ""
         appendMessage(text, role: "user")
-        isLoading = true; sendButton.isEnabled = false; sendButton.title = "..."
-
-        var apiMsgs: [[String: String]] = []
-        apiMsgs.append(["role": "system", "content": """
-        你是「小冷工具箱」的 AI 助手，当前使用的模型是 \(store.aiModel)。帮助用户管理开发和安全工具。
-        能力：分析工具箱状态、推荐工具、生成导入列表、解答工具问题。
-
-        【隐私规则 - 必须严格遵守】
-        绝对不要在回答中输出用户的实际文件系统路径（如 /Users/xxx/...）。
-        给出命令示例时，一律使用占位符：
-        - 数据文件路径用 $DATA_FILE 或 <工具箱路径>/Contents/MacOS/xiaolengbox_data.json
-        - PDF/MD 文件路径用 /你的/文件/路径.pdf
-        - 工具路径用 /安装/路径/工具名
-        告诉用户自行替换占位符即可，不要尝试猜测或推断用户的实际路径。
-
-        当用户问命令行操作问题时，根据以下 CLI 指南给出命令模板（使用占位符）。
-        导入格式：工具名 路径：/完整/路径（每行一个）
-        当前状态：\(store.generateToolboxContext())
-        \(store.generateCLIHelp())
-        用中文回答，简洁实用。
-        """])
-        for m in messages where m.role != "system" { apiMsgs.append(["role": m.role, "content": m.content]) }
-
-        callAI(apiMsgs) { [weak self] result in
-            DispatchQueue.main.async {
-                self?.isLoading = false; self?.sendButton.isEnabled = true; self?.sendButton.title = "发送"
-                switch result {
-                case .success(let reply): self?.appendMessage(reply, role: "assistant")
-                case .failure(let err): self?.appendMessage("请求失败: \(err.localizedDescription)", role: "system")
-                }
-            }
-        }
-    }
-
-    private func callAI(_ msgs: [[String: String]], completion: @escaping (Result<String, Error>) -> Void) {
-        let store = DataStore.shared
-        var base = store.aiBaseUrl; if base.hasSuffix("/") { base = String(base.dropLast()) }
-        guard let url = URL(string: "\(base)/chat/completions") else {
-            completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效 API 地址"]))); return
-        }
-        var req = URLRequest(url: url); req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if !store.aiApiKey.isEmpty { req.setValue("Bearer \(store.aiApiKey)", forHTTPHeaderField: "Authorization") }
-        req.timeoutInterval = 120
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": store.aiModel, "messages": msgs, "temperature": 0.7, "max_tokens": 4096])
-
-        URLSession.shared.dataTask(with: req) { data, resp, err in
-            if let err = err { completion(.failure(err)); return }
-            guard let data = data else { completion(.failure(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "无响应"]))); return }
-            if let h = resp as? HTTPURLResponse, h.statusCode != 200 {
-                let b = String(data: data, encoding: .utf8) ?? "?"; completion(.failure(NSError(domain: "", code: h.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(h.statusCode): \(String(b.prefix(200)))"]))); return
-            }
-            do {
-                let j = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-                let ch = j?["choices"] as? [[String: Any]]
-                let msg = ch?.first?["message"] as? [String: Any]
-                completion(.success(msg?["content"] as? String ?? "无响应"))
-            } catch { completion(.failure(error)) }
-        }.resume()
+        let answer = PresetMatcher.match(text)
+        appendMessage(answer, role: "assistant")
     }
 }

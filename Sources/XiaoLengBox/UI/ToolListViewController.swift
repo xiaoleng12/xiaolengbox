@@ -270,7 +270,7 @@ class ToolListViewController: NSViewController,
           工具名 路径：/usr/local/bin/xxx
 
         示例：
-          Claude Code 路径：/Users/me/.local/bin/claude
+          Claude Code 路径：~/.local/bin/claude
           nmap 路径：/opt/homebrew/bin/nmap
           Burp Suite 路径：/Applications/Burp Suite Professional.app
 
